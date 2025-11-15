@@ -74,6 +74,10 @@ app.innerHTML = `
           <input id="bb-classic" type="checkbox" class="bb-classic-checkbox" />
           Classic
         </label>
+        <label class="bb-float-label" for="bb-float">
+          <input id="bb-float" type="checkbox" class="bb-float-checkbox" />
+          Float
+        </label>
         <label class="bb-gain-label" for="bb-gain">
           Gain
           <input
@@ -111,12 +115,20 @@ let initialCode = `a=plot(t>>10&7),
 a*t`;
 let initialSampleRate: number | null = null;
 let initialClassic: boolean | null = null;
+let initialFloat: boolean | null = null;
 
 try {
   const params = new URLSearchParams(window.location.search);
   const rawPatch = params.get(PATCH_PARAM_KEY);
   if (rawPatch) {
-    const parsed = decodePatchFromBase64(rawPatch);
+    const parsed = decodePatchFromBase64(rawPatch) as
+      | {
+          code?: unknown;
+          sr?: unknown;
+          classic?: unknown;
+          float?: unknown;
+        }
+      | null;
     if (parsed) {
       if (typeof parsed.code === "string" && parsed.code.trim().length > 0) {
         initialCode = parsed.code;
@@ -126,6 +138,9 @@ try {
       }
       if (typeof parsed.classic === "boolean") {
         initialClassic = parsed.classic;
+      }
+      if (typeof parsed.float === "boolean") {
+        initialFloat = parsed.float;
       }
     }
   }
@@ -160,6 +175,7 @@ const stopButton = document.querySelector<HTMLButtonElement>("#bb-stop-button");
 const sampleRateInput =
   document.querySelector<HTMLInputElement>("#bb-sample-rate");
 const classicCheckbox = document.querySelector<HTMLInputElement>("#bb-classic");
+const floatCheckbox = document.querySelector<HTMLInputElement>("#bb-float");
 const gainInput = document.querySelector<HTMLInputElement>("#bb-gain");
 const gainValueSpan = document.querySelector<HTMLSpanElement>("#bb-gain-value");
 const errorSpan = document.querySelector<HTMLSpanElement>("#bb-error");
@@ -183,21 +199,31 @@ if (classicCheckbox && initialClassic !== null) {
   classicCheckbox.checked = initialClassic;
 }
 
-function getCurrentPatchState(): { code: string; sr: number; classic: boolean } {
+if (floatCheckbox && initialFloat !== null) {
+  floatCheckbox.checked = initialFloat;
+}
+
+function getCurrentPatchState(): {
+  code: string;
+  sr: number;
+  classic: boolean;
+  float: boolean;
+} {
   const code = (editor as any).getValue() as string;
   const rawSr = sampleRateInput?.value;
   const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
   let sr = Number.isFinite(parsedSr) ? parsedSr : 8000;
   sr = Math.min(48000, Math.max(500, Math.floor(sr)));
   const classic = !!classicCheckbox?.checked;
-  return { code, sr, classic };
+  const float = !!floatCheckbox?.checked;
+  return { code, sr, classic, float };
 }
 
 function updateUrlPatchFromUi() {
   try {
-    const { code, sr, classic } = getCurrentPatchState();
+    const { code, sr, classic, float } = getCurrentPatchState();
     const params = new URLSearchParams(window.location.search);
-    const payload = { code, sr, classic };
+    const payload = { code, sr, classic, float };
     params.set(PATCH_PARAM_KEY, encodePatchToBase64(payload));
     const query = params.toString();
     const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
@@ -211,6 +237,7 @@ async function ensureAudioGraph(
   expression: string,
   targetSampleRate: number,
   classic: boolean,
+  float: boolean,
 ) {
   if (!audioContext) {
     audioContext = new AudioContext();
@@ -240,6 +267,7 @@ async function ensureAudioGraph(
     expression,
     sampleRate: targetSampleRate,
     classic,
+    float,
   });
 }
 
@@ -260,6 +288,7 @@ type AudioParams = {
   expression: string;
   targetSampleRate: number;
   classic: boolean;
+  float: boolean;
 };
 
 type PlotConfig = {
@@ -281,6 +310,7 @@ function getAudioParams(): AudioParams | null {
     void new Function("t", `return Number(${expression}) || 0;`);
   } catch (error) {
     setError("Expression does not compile.");
+    console.error(error);
     return null;
   }
 
@@ -295,8 +325,9 @@ function getAudioParams(): AudioParams | null {
   );
 
   const classic = !!classicCheckbox?.checked;
+  const float = !!floatCheckbox?.checked;
 
-  return { expression, targetSampleRate, classic };
+  return { expression, targetSampleRate, classic, float };
 }
 
 let hotReloadTimer: number | null = null;
@@ -322,12 +353,13 @@ async function updateAudioParams() {
   const params = getAudioParams();
   if (!params) return;
 
-  const { expression, targetSampleRate, classic } = params;
+  const { expression, targetSampleRate, classic, float } = params;
   bytebeatNode.port.postMessage({
     type: "setExpression",
     expression,
     sampleRate: targetSampleRate,
     classic,
+    float,
   });
 
   setError("Compiled");
@@ -417,6 +449,7 @@ const tan = Math.tan;
 const asin = Math.asin;
 const acos = Math.acos;
 const atan = Math.atan;
+const tanh = Math.tanh;
 const floor = Math.floor;
 const ceil = Math.ceil;
 const round = Math.round;
@@ -426,6 +459,8 @@ const exp = Math.exp;
 const pow = Math.pow;
 const PI = Math.PI;
 const TAU = Math.PI * 2;
+const min = Math.min;
+const max = Math.max;
 function plot(x) {
   const idx = plotState.index++;
   plotState.values[idx] = Number(x) || 0;
@@ -533,11 +568,18 @@ function realtimePlotLoop() {
   );
 
   try {
+    const isFloat = !!floatCheckbox?.checked;
     for (let i = 0; i < windowSize; i += 1) {
       const t = baseT + i;
-      const { sample, plots } = evalFn(t);
-      const sampleByte = (Number(sample) || 0) & 0xff;
-      series.sample.push(sampleByte);
+      const tArg = isFloat ? t / lastPlotSampleRate : t;
+      const { sample, plots } = evalFn(tArg);
+      if (isFloat) {
+        const s = Number(sample) || 0;
+        series.sample.push(s);
+      } else {
+        const sampleByte = (Number(sample) || 0) & 0xff;
+        series.sample.push(sampleByte);
+      }
       for (let idx = 0; idx < plots.length; idx += 1) {
         if (!plotSeries[idx]) plotSeries[idx] = [];
         plotSeries[idx].push(Number(plots[idx]) || 0);
@@ -567,10 +609,10 @@ async function handlePlayClick() {
   const params = getAudioParams();
   if (!params) return;
 
-  const { expression, targetSampleRate, classic } = params;
+  const { expression, targetSampleRate, classic, float } = params;
 
   try {
-    await ensureAudioGraph(expression, targetSampleRate, classic);
+    await ensureAudioGraph(expression, targetSampleRate, classic, float);
     if (!audioContext) return;
 
     if (audioContext.state === "suspended") {
@@ -657,3 +699,17 @@ if (gainInput) {
     }
   });
 }
+
+window.addEventListener("keydown", (event: KeyboardEvent) => {
+  if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
+  if (!(event.code === "Space" || event.key === " ")) return;
+
+  event.preventDefault();
+
+  const isRunning = !!audioContext && audioContext.state === "running";
+  if (isRunning) {
+    void handleStopClick();
+  } else {
+    void handlePlayClick();
+  }
+});
