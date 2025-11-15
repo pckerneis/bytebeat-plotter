@@ -131,6 +131,12 @@ type AudioParams = {
   classic: boolean
 }
 
+type PlotConfig = {
+  evalFn: (t: number) => { sample: number; plots: number[] }
+  windowSize: number
+  plotNames: string[]
+}
+
 function getAudioParams(): AudioParams | null {
   const code = (editor as any).getValue() as string
   const expression = extractExpressionFromCode(code)
@@ -190,6 +196,12 @@ async function updateAudioParams() {
     sampleRate: targetSampleRate,
     classic,
   })
+
+  // Keep realtime plots in sync with the current expression and window
+  updatePlotConfigFromCode(targetSampleRate)
+  if (!plotAnimationId && audioContext.state === 'running') {
+    plotAnimationId = window.requestAnimationFrame(realtimePlotLoop)
+  }
 }
 
 function buildPlotPath(samples: number[], width: number, height: number): string {
@@ -213,6 +225,72 @@ function buildPlotPath(samples: number[], width: number, height: number): string
   })
 
   return path.trim()
+}
+
+function buildPlotConfig(code: string): PlotConfig | null {
+  const expression = extractExpressionFromCode(code)
+
+  if (!expression) {
+    return null
+  }
+
+  // Derive human-friendly plot names from the plot(...) call arguments.
+  // We need to support nested parentheses, so we scan manually.
+  const plotNames: string[] = []
+  for (let i = 0; i < expression.length; i += 1) {
+    if (expression.startsWith('plot(', i)) {
+      let depth = 0
+      const start = i + 'plot('.length
+      let end = start
+      for (let j = start; j < expression.length; j += 1) {
+        const ch = expression[j]
+        if (ch === '(') depth += 1
+        else if (ch === ')') {
+          if (depth === 0) {
+            end = j
+            break
+          }
+          depth -= 1
+        }
+      }
+
+      const raw = expression.slice(start, end).trim()
+      plotNames.push(raw || `plot ${plotNames.length + 1}`)
+    }
+  }
+
+  const fnBody = `
+"use strict";
+plotState.values.length = 0;
+plotState.index = 0;
+function plot(x) {
+  const idx = plotState.index++;
+  plotState.values[idx] = Number(x) || 0;
+  return x;
+}
+const sample = (${expression});
+return { sample: Number(sample) || 0, plots: plotState.values.slice() };
+`
+
+  let inner: (t: number, plotState: { values: number[]; index: number }) => {
+    sample: number
+    plots: number[]
+  }
+
+  try {
+    // eslint-disable-next-line no-new-func
+    inner = new Function('t', 'plotState', fnBody) as typeof inner
+  } catch {
+    return null
+  }
+
+  const evalFn = (t: number) => {
+    const state = { values: [] as number[], index: 0 }
+    return inner(t, state)
+  }
+
+  const DEFAULT_WINDOW = 256
+  return { evalFn, windowSize: DEFAULT_WINDOW, plotNames }
 }
 
 function renderPlots(series: Record<string, number[]>) {
@@ -243,92 +321,100 @@ function renderPlots(series: Record<string, number[]>) {
   plotsContainer.innerHTML = svgBlocks
 }
 
+let currentPlotConfig: PlotConfig | null = null
+let plotAnimationId: number | null = null
+let lastPlotSampleRate = 8000
+
+function updatePlotConfigFromCode(targetSampleRate: number) {
+  const code = (editor as any).getValue() as string
+  currentPlotConfig = buildPlotConfig(code)
+  lastPlotSampleRate = targetSampleRate
+}
+
+function stopRealtimePlots() {
+  if (plotAnimationId !== null) {
+    window.cancelAnimationFrame(plotAnimationId)
+    plotAnimationId = null
+  }
+}
+
+function realtimePlotLoop() {
+  plotAnimationId = null
+  if (!audioContext || audioContext.state !== 'running' || !currentPlotConfig) {
+    return
+  }
+
+  const { evalFn, windowSize, plotNames } = currentPlotConfig
+  const series: Record<string, number[]> = { sample: [] }
+  const plotSeries: number[][] = []
+
+  const baseT = Math.max(
+    0,
+    Math.floor(audioContext.currentTime * lastPlotSampleRate) - windowSize + 1,
+  )
+
+  try {
+    for (let i = 0; i < windowSize; i += 1) {
+      const t = baseT + i
+      const { sample, plots } = evalFn(t)
+      series.sample.push(Number(sample) || 0)
+      for (let idx = 0; idx < plots.length; idx += 1) {
+        if (!plotSeries[idx]) plotSeries[idx] = []
+        plotSeries[idx].push(Number(plots[idx]) || 0)
+      }
+    }
+  } catch {
+    // If plotting fails, stop realtime plots but keep audio running
+    stopRealtimePlots()
+    return
+  }
+
+  plotSeries.forEach((values, idx) => {
+    const name = plotNames[idx] ?? `plot ${idx + 1}`
+    series[name] = values
+  })
+
+  renderPlots(series)
+
+  plotAnimationId = window.requestAnimationFrame(realtimePlotLoop)
+}
+
 function handlePlotClick() {
   setError(null)
 
   const code = (editor as any).getValue() as string
+  const config = buildPlotConfig(code)
 
-  // Find variables referenced in comments like // plot(a) or // plot(a,256)
-  type PlotRequest = { name: string; window?: number }
-  const plotRequests: PlotRequest[] = []
-  const plotCommentRegex = /\/\/\s*plot\(\s*([a-zA-Z_$][\w$]*)\s*(?:,\s*(\d+)\s*)?\)/g
-  let match: RegExpExecArray | null
-  while ((match = plotCommentRegex.exec(code)) !== null) {
-    const name = match[1]
-    const windowText = match[2]
-    const window = windowText ? Number(windowText) : undefined
-    plotRequests.push({ name, window })
-  }
-
-  const plotVars = Array.from(new Set(plotRequests.map((p) => p.name)))
-
-  // Strip line comments to get a pure expression body
-  const expression = code
-    .split('\n')
-    .map((line) => line.replace(/\/\/.*$/, ''))
-    .join('\n')
-    .trim()
-
-  if (!expression) {
+  if (!config) {
     setError('Expression is empty.')
     renderPlots({})
     return
   }
 
-  const fnBodyLines: string[] = []
-  fnBodyLines.push(`const result = (${expression});`)
+  const { evalFn, windowSize, plotNames } = config
 
-  const parts: string[] = ['sample: Number(result) || 0']
-  for (const v of plotVars) {
-    parts.push(`${v}: Number(typeof ${v} !== 'undefined' ? ${v} : 0) || 0`)
-  }
-  fnBodyLines.push(`return { ${parts.join(', ')} };`)
-
-  let evalFn: (t: number) => Record<string, number>
-  try {
-    // eslint-disable-next-line no-new-func
-    evalFn = new Function('t', fnBodyLines.join('\n')) as (t: number) => Record<string, number>
-  } catch (error) {
-    setError('Failed to compile expression.')
-    renderPlots({})
-    return
-  }
-
-  // Determine sampling window from plot requests (e.g. // plot(a,256))
-  const DEFAULT_WINDOW = 256
-  const MIN_WINDOW = 8
-  const MAX_WINDOW = 4096
-  let windowSize = DEFAULT_WINDOW
-  for (const req of plotRequests) {
-    if (req.window && Number.isFinite(req.window)) {
-      const clamped = Math.min(MAX_WINDOW, Math.max(MIN_WINDOW, Math.floor(req.window)))
-      if (clamped > windowSize) {
-        windowSize = clamped
-      }
-    }
-  }
-
-  const NUM_SAMPLES = windowSize
-  const series: Record<string, number[]> = {}
-  series.sample = []
-  for (const v of plotVars) {
-    series[v] = []
-  }
+  const series: Record<string, number[]> = { sample: [] }
+  const plotSeries: number[][] = []
 
   try {
-    for (let t = 0; t < NUM_SAMPLES; t += 1) {
-      const result = evalFn(t)
-      series.sample.push(Number(result.sample) || 0)
-      for (const v of plotVars) {
-        const val = result[v]
-        series[v].push(Number(val) || 0)
+    for (let t = 0; t < windowSize; t += 1) {
+      const { sample, plots } = evalFn(t)
+      series.sample.push(Number(sample) || 0)
+      for (let idx = 0; idx < plots.length; idx += 1) {
+        if (!plotSeries[idx]) plotSeries[idx] = []
+        plotSeries[idx].push(Number(plots[idx]) || 0)
       }
     }
-  } catch (error) {
+  } catch {
     setError('Error while evaluating expression.')
     renderPlots({})
     return
   }
+
+  plotSeries.forEach((values, idx) => {
+    const name = plotNames[idx] ?? `plot ${idx + 1}`
+    series[name] = values
+  })
 
   renderPlots(series)
 }
@@ -352,6 +438,11 @@ async function handlePlayClick() {
     if (bytebeatNode) {
       bytebeatNode.port.postMessage({ type: 'reset' })
     }
+
+    updatePlotConfigFromCode(targetSampleRate)
+    if (!plotAnimationId) {
+      plotAnimationId = window.requestAnimationFrame(realtimePlotLoop)
+    }
   } catch (error) {
     setError('Failed to start audio playback.')
   }
@@ -364,6 +455,8 @@ async function handleStopClick() {
   } catch (error) {
     // ignore
   }
+
+  stopRealtimePlots()
 }
 
 if (plotButton) {

@@ -19,7 +19,12 @@ class BytebeatProcessor extends AudioWorkletProcessor {
       if (type === 'setExpression' && typeof expression === 'string') {
         try {
           // eslint-disable-next-line no-new-func
-          const fn = new Function('t', `"use strict"; return Number(${expression}) || 0;`)
+          const fnBody = `
+"use strict";
+function plot(x) { return x; }
+return Number((${expression})) || 0;
+`
+          const fn = new Function('t', fnBody)
           this._fn = fn
           const hasTarget =
             typeof targetSampleRate === 'number' && isFinite(targetSampleRate) && targetSampleRate > 0
