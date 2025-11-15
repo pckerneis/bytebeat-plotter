@@ -12,6 +12,47 @@ if (!app) {
 }
 
 const EDITOR_STORAGE_KEY = "bb-editor-code";
+const PATCH_PARAM_KEY = "p";
+
+function encodePatchToBase64(payload: {
+  code: string;
+  sr: number;
+  classic: boolean;
+}): string {
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  let bin = "";
+  bytes.forEach((b) => {
+    bin += String.fromCharCode(b);
+  });
+  const b64 = btoa(bin);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodePatchFromBase64(value: string): {
+  code?: unknown;
+  sr?: unknown;
+  classic?: unknown;
+} | null {
+  try {
+    let b64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    const json = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(json) as {
+      code?: unknown;
+      sr?: unknown;
+      classic?: unknown;
+    };
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 app.innerHTML = `
   <main class="bb-root">
@@ -68,14 +109,39 @@ if (!editorTextArea) {
 
 let initialCode = `a=plot(t>>10&7),
 a*t`;
+let initialSampleRate: number | null = null;
+let initialClassic: boolean | null = null;
 
 try {
-  const stored = window.localStorage.getItem(EDITOR_STORAGE_KEY);
-  if (stored && typeof stored === "string") {
-    initialCode = stored;
+  const params = new URLSearchParams(window.location.search);
+  const rawPatch = params.get(PATCH_PARAM_KEY);
+  if (rawPatch) {
+    const parsed = decodePatchFromBase64(rawPatch);
+    if (parsed) {
+      if (typeof parsed.code === "string" && parsed.code.trim().length > 0) {
+        initialCode = parsed.code;
+      }
+      if (typeof parsed.sr === "number" && Number.isFinite(parsed.sr)) {
+        initialSampleRate = parsed.sr;
+      }
+      if (typeof parsed.classic === "boolean") {
+        initialClassic = parsed.classic;
+      }
+    }
   }
 } catch {
-  // ignore storage errors (e.g. disabled cookies)
+  // ignore malformed URL patches
+}
+
+if (!new URLSearchParams(window.location.search).has(PATCH_PARAM_KEY)) {
+  try {
+    const stored = window.localStorage.getItem(EDITOR_STORAGE_KEY);
+    if (stored && typeof stored === "string") {
+      initialCode = stored;
+    }
+  } catch {
+    // ignore storage errors (e.g. disabled cookies)
+  }
 }
 
 editorTextArea.value = initialCode;
@@ -104,6 +170,42 @@ const plotsContainer = document.querySelector<HTMLDivElement>(
 let audioContext: AudioContext | null = null;
 let bytebeatNode: AudioWorkletNode | null = null;
 let gainNode: GainNode | null = null;
+
+if (sampleRateInput && initialSampleRate !== null) {
+  const sr = Math.min(
+    48000,
+    Math.max(500, Math.floor(Number.isFinite(initialSampleRate) ? initialSampleRate : 8000)),
+  );
+  sampleRateInput.value = String(sr);
+}
+
+if (classicCheckbox && initialClassic !== null) {
+  classicCheckbox.checked = initialClassic;
+}
+
+function getCurrentPatchState(): { code: string; sr: number; classic: boolean } {
+  const code = (editor as any).getValue() as string;
+  const rawSr = sampleRateInput?.value;
+  const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
+  let sr = Number.isFinite(parsedSr) ? parsedSr : 8000;
+  sr = Math.min(48000, Math.max(500, Math.floor(sr)));
+  const classic = !!classicCheckbox?.checked;
+  return { code, sr, classic };
+}
+
+function updateUrlPatchFromUi() {
+  try {
+    const { code, sr, classic } = getCurrentPatchState();
+    const params = new URLSearchParams(window.location.search);
+    const payload = { code, sr, classic };
+    params.set(PATCH_PARAM_KEY, encodePatchToBase64(payload));
+    const query = params.toString();
+    const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", newUrl);
+  } catch {
+    // ignore URL serialization errors
+  }
+}
 
 async function ensureAudioGraph(
   expression: string,
@@ -522,17 +624,20 @@ if (stopButton) {
   } catch {
     // ignore storage errors
   }
+  updateUrlPatchFromUi();
   scheduleAudioUpdate();
 });
 
 if (sampleRateInput) {
   sampleRateInput.addEventListener("change", () => {
+    updateUrlPatchFromUi();
     scheduleAudioUpdate();
   });
 }
 
 if (classicCheckbox) {
   classicCheckbox.addEventListener("change", () => {
+    updateUrlPatchFromUi();
     scheduleAudioUpdate();
   });
 }
