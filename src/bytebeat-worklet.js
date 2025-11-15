@@ -4,6 +4,7 @@ class BytebeatProcessor extends AudioWorkletProcessor {
     // Shared state
     this._t = 0
     this._fn = (t) => 0
+    this._lastGoodFn = this._fn
 
     // Modern mode: evaluate at device rate with fractional t
     this._step = 8000 / sampleRate // default target 8 kHz
@@ -40,6 +41,8 @@ function plot(x) { return x; }
 return Number((${expression})) || 0;
 `
           const fn = new Function('t', fnBody)
+          // Install the newly compiled function; it will be promoted to
+          // _lastGoodFn only after a process() block runs without error.
           this._fn = fn
           const hasTarget =
             typeof targetSampleRate === 'number' && isFinite(targetSampleRate) && targetSampleRate > 0
@@ -117,6 +120,11 @@ return Number((${expression})) || 0;
 
         this._t = t
       }
+      // If we reach here without throwing, remember this function as the
+      // last known-good implementation.
+      if (this._fn) {
+        this._lastGoodFn = this._fn
+      }
     } catch (e) {
       // If the expression throws (e.g. ReferenceError during editing),
       // silence this buffer but keep the last valid function and report error
@@ -124,6 +132,10 @@ return Number((${expression})) || 0;
         channel[i] = 0
       }
       this.port.postMessage({ type: 'runtimeError', message: String(e && e.message ? e.message : e) })
+      // Revert to last known-good function for subsequent blocks
+      if (this._lastGoodFn) {
+        this._fn = this._lastGoodFn
+      }
     }
     return true
   }
