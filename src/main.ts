@@ -95,6 +95,15 @@ async function ensureAudioGraph(expression: string, targetSampleRate: number, cl
     bytebeatNode.connect(gainNode);
     gainNode.gain.value = 0.25;
     gainNode.connect(audioContext.destination);
+
+    // Surface processor errors to the UI without stopping audio
+    bytebeatNode.port.onmessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; message?: string } | null
+      if (!data || !data.type) return
+      if (data.type === 'compileError' || data.type === 'runtimeError') {
+        setError(data.message || 'Error in expression.')
+      }
+    }
   }
 
   if (!bytebeatNode) return
@@ -188,6 +197,9 @@ async function updateAudioParams() {
     sampleRate: targetSampleRate,
     classic,
   })
+
+  // Clear any previous error once we’ve successfully sent a new expression
+  setError('Compiled')
 
   // Keep realtime plots in sync with the current expression and window
   updatePlotConfigFromCode(targetSampleRate)

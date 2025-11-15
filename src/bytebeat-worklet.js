@@ -60,12 +60,8 @@ return Number((${expression})) || 0;
             this._step = effectiveRate / sampleRate
           }
         } catch (e) {
-          // On compile error, fall back to silence and reset time
-          this._fn = () => 0
-          this._t = 0
-          this._phase = 0
-          this._lastRaw = 0
-          this._gain = 0
+          // On compile error, keep the previous function but notify the UI
+          this.port.postMessage({ type: 'compileError', message: String(e && e.message ? e.message : e) })
         }
       } else if (type === 'reset') {
         // Explicit reset from main thread (e.g. on Play)
@@ -82,44 +78,52 @@ return Number((${expression})) || 0;
     const channel = output[0]
     const fn = this._fn
     const gain = this._gain
+    try {
+      if (this._classic) {
+        // Classic mode: emulate rendering at target SR then resample to device SR
+        // using simple sample-and-hold, which introduces characteristic folding.
+        let t = this._t | 0
+        let phase = this._phase
+        let lastRaw = this._lastRaw | 0
+        const ratio = this._targetRate / sampleRate // target samples per device sample
 
-    if (this._classic) {
-      // Classic mode: emulate rendering at target SR then resample to device SR
-      // using simple sample-and-hold, which introduces characteristic folding.
-      let t = this._t | 0
-      let phase = this._phase
-      let lastRaw = this._lastRaw | 0
-      const ratio = this._targetRate / sampleRate // target samples per device sample
+        for (let i = 0; i < channel.length; i += 1) {
+          phase += ratio
+          if (phase >= 1) {
+            const steps = Math.floor(phase)
+            phase -= steps
+            t += steps
+            lastRaw = fn(t) | 0
+          }
 
-      for (let i = 0; i < channel.length; i += 1) {
-        phase += ratio
-        if (phase >= 1) {
-          const steps = Math.floor(phase)
-          phase -= steps
-          t += steps
-          lastRaw = fn(t) | 0
+          const byteValue = lastRaw & 0xff
+          channel[i] = ((byteValue - 128) / 128) * gain
         }
 
-        const byteValue = lastRaw & 0xff
-        channel[i] = ((byteValue - 128) / 128) * gain
+        this._t = t
+        this._phase = phase
+        this._lastRaw = lastRaw
+      } else {
+        // Modern mode: evaluate expression once per device sample at fractional t
+        let t = this._t
+        const step = this._step
+
+        for (let i = 0; i < channel.length; i += 1) {
+          const raw = fn(t) | 0 // integer sample
+          const byteValue = raw & 0xff
+          channel[i] = ((byteValue - 128) / 128) * gain
+          t += step
+        }
+
+        this._t = t
       }
-
-      this._t = t
-      this._phase = phase
-      this._lastRaw = lastRaw
-    } else {
-      // Modern mode: evaluate expression once per device sample at fractional t
-      let t = this._t
-      const step = this._step
-
+    } catch (e) {
+      // If the expression throws (e.g. ReferenceError during editing),
+      // silence this buffer but keep the last valid function and report error
       for (let i = 0; i < channel.length; i += 1) {
-        const raw = fn(t) | 0 // integer sample
-        const byteValue = raw & 0xff
-        channel[i] = ((byteValue - 128) / 128) * gain
-        t += step
+        channel[i] = 0
       }
-
-      this._t = t
+      this.port.postMessage({ type: 'runtimeError', message: String(e && e.message ? e.message : e) })
     }
     return true
   }
