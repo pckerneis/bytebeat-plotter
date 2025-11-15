@@ -156,6 +156,8 @@ function getAudioParams(): AudioParams | null {
     return null
   }
 
+  setError('Compiled');
+
   const rawSr = sampleRateInput?.value
   const parsedSr = rawSr ? Number(rawSr) : Number.NaN
   let targetSampleRate = Number.isFinite(parsedSr) ? parsedSr : 8000
@@ -235,29 +237,41 @@ function buildPlotConfig(code: string): PlotConfig | null {
   }
 
   // Derive human-friendly plot names from the plot(...) call arguments.
-  // We need to support nested parentheses, so we scan manually.
+  // We approximate JS evaluation order by collecting inner plot() calls
+  // before their parents using a recursive scan.
   const plotNames: string[] = []
-  for (let i = 0; i < expression.length; i += 1) {
-    if (expression.startsWith('plot(', i)) {
-      let depth = 0
-      const start = i + 'plot('.length
-      let end = start
-      for (let j = start; j < expression.length; j += 1) {
-        const ch = expression[j]
-        if (ch === '(') depth += 1
-        else if (ch === ')') {
-          if (depth === 0) {
-            end = j
-            break
-          }
-          depth -= 1
-        }
-      }
 
-      const raw = expression.slice(start, end).trim()
-      plotNames.push(raw || `plot ${plotNames.length + 1}`)
+  function collectPlotNames(expr: string) {
+    for (let i = 0; i < expr.length; i += 1) {
+      if (expr.startsWith('plot(', i)) {
+        let depth = 0
+        const start = i + 'plot('.length
+        let end = start
+        for (let j = start; j < expr.length; j += 1) {
+          const ch = expr[j]
+          if (ch === '(') depth += 1
+          else if (ch === ')') {
+            if (depth === 0) {
+              end = j
+              break
+            }
+            depth -= 1
+          }
+        }
+
+        const arg = expr.slice(start, end)
+        // Collect names for any nested plot() inside the argument first
+        collectPlotNames(arg)
+
+        const raw = arg.trim()
+        plotNames.push(raw || `plot ${plotNames.length + 1}`)
+
+        i = end
+      }
     }
   }
+
+  collectPlotNames(expression)
 
   const fnBody = `
 "use strict";
@@ -289,7 +303,7 @@ return { sample: Number(sample) || 0, plots: plotState.values.slice() };
     return inner(t, state)
   }
 
-  const DEFAULT_WINDOW = 256
+  const DEFAULT_WINDOW = 8000
   return { evalFn, windowSize: DEFAULT_WINDOW, plotNames }
 }
 
