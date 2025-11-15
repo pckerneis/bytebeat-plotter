@@ -12,56 +12,47 @@ if (!app) {
 
 app.innerHTML = `
   <main class="bb-root">
-    <header class="bb-header">
-      <h1 class="bb-title">Bytebeat plotter</h1>
-      <p class="bb-tagline">Web-based Bytebeat expression player with plotting capabilities.</p>
-    </header>
-    <section class="bb-layout">
-      <div class="bb-editor-panel">
-        <h2 class="bb-section-title">Expression editor</h2>
-        <div class="bb-editor-container">
-          <textarea id="bb-editor" name="bb-editor"></textarea>
-        </div>
-        <div class="bb-editor-actions">
-          <button id="bb-play-button" type="button">Play</button>
-          <button id="bb-stop-button" type="button">Stop</button>
-          <label class="bb-sr-label" for="bb-sample-rate">SR</label>
+    <header class="bb-topbar">
+      <div class="bb-topbar-controls">
+        <button id="bb-play-button" type="button">Play</button>
+        <button id="bb-stop-button" type="button">Stop</button>
+        <label class="bb-sr-label" for="bb-sample-rate">SR</label>
+        <input
+          id="bb-sample-rate"
+          class="bb-sr-input"
+          type="number"
+          min="500"
+          max="48000"
+          step="500"
+          value="8000"
+        />
+        <label class="bb-classic-label" for="bb-classic">
+          <input id="bb-classic" type="checkbox" class="bb-classic-checkbox" />
+          Classic
+        </label>
+        <label class="bb-gain-label" for="bb-gain">
+          Gain
           <input
-            id="bb-sample-rate"
-            class="bb-sr-input"
-            type="number"
-            min="500"
-            max="48000"
-            step="500"
-            value="8000"
+            id="bb-gain"
+            class="bb-gain-input"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.5"
           />
-          <label class="bb-classic-label" for="bb-classic">
-            <input id="bb-classic" type="checkbox" class="bb-classic-checkbox" />
-            Classic
-          </label>
-          <label class="bb-gain-label" for="bb-gain">
-            Gain
-            <input
-              id="bb-gain"
-              class="bb-gain-input"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.5"
-            />
-            <span id="bb-gain-value" class="bb-gain-value">50%</span>
-          </label>
-          <span id="bb-error" class="bb-error" aria-live="polite"></span>
-        </div>
+          <span id="bb-gain-value" class="bb-gain-value">50%</span>
+        </label>
+        <span id="bb-error" class="bb-error" aria-live="polite"></span>
       </div>
-      <div class="bb-plots-panel">
-        <h2 class="bb-section-title">Plots</h2>
-        <div id="bb-plots-container" class="bb-plots-container">
-          <p class="bb-placeholder">Waveform and variable plots will be rendered here.</p>
-        </div>
+    </header>
+    <section class="bb-editor-shell">
+      <div class="bb-editor-container">
+        <textarea id="bb-editor" name="bb-editor"></textarea>
       </div>
     </section>
+    <div id="bb-plots-container" class="bb-plots-floating">
+    </div>
   </main>
 `
 

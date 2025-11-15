@@ -5,7 +5,6 @@
 
   color-scheme: dark;
   color: rgba(255, 255, 255, 0.94);
-  background-color: #050816;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -24,64 +23,60 @@ body {
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1.5rem;
+  width: 100vw;
+  height: 100vh;
 }
 
 .bb-root {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  width: 100%;
+  height: 100%;
 }
 
-.bb-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 0.75rem;
-}
-
-.bb-title {
-  margin: 0;
-  font-size: 1.8rem;
-}
-
-.bb-tagline {
-  margin: 0.25rem 0 0;
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.bb-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+.bb-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.019);
 }
 
-.bb-editor-panel,
-.bb-plots-panel {
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: radial-gradient(circle at top left, #1f2937 0, #020617 50%, #020617 100%);
-  padding: 1rem 1.25rem;
+
+.bb-topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bb-editor-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 
 .bb-editor-container {
-  margin-top: 0.5rem;
+  flex: 1 1 auto;
 }
 
 .bb-editor-container .CodeMirror {
-  height: 260px;
-  border-radius: 0.5rem;
-  border: 1px solid rgba(148, 163, 184, 0.6);
+  height: 100%;
+  background-color: #000000;
+  color: #e5e7eb;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.85rem;
 }
 
-.bb-editor-actions {
-  margin-top: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.bb-editor-container .CodeMirror-gutters {
+  background-color: #000000;
+  border-right: 1px solid rgba(31, 41, 55, 0.9);
+}
+
+.bb-editor-container .CodeMirror-linenumber {
+  color: rgba(156, 163, 175, 0.9);
 }
 
 #bb-plot-button {
@@ -131,18 +126,24 @@ body {
   width: 6rem;
 }
 
-.bb-plots-container {
-  margin-top: 0.5rem;
+.bb-plots-floating {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  max-width: 360px;
+  max-height: 80vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  pointer-events: none;
 }
 
 .bb-plot {
-  border-radius: 0.5rem;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  padding: 0.5rem 0.75rem 0.75rem;
-  background: radial-gradient(circle at top left, #0b1120 0, #020617 60%, #020617 100%);
+  border: 1px solid rgba(255, 255, 255, 0.293);
+  padding: 0.5rem;
+  background: black;
+  pointer-events: auto;
 }
 
 .bb-plot-header {
@@ -168,23 +169,8 @@ body {
   stroke-width: 1.2;
 }
 
-.bb-section-title {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
-}
-
 .bb-placeholder {
   margin: 0;
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.7);
-}
-
-@media (max-width: 768px) {
-  #app {
-    padding: 1rem;
-  }
-
-  .bb-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
