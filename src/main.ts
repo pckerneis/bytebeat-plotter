@@ -2,6 +2,7 @@ import './style.css'
 import * as CodeMirror from 'codemirror'
 import 'codemirror/lib/codemirror.css'
 import 'codemirror/theme/midnight.css'
+import 'codemirror/addon/edit/matchbrackets.js'
 // @ts-ignore: JavaScript mode does not ship its own type declarations
 import 'codemirror/mode/javascript/javascript.js'
 
@@ -63,12 +64,17 @@ if (!editorTextArea) {
   throw new Error('Editor textarea #bb-editor not found')
 }
 
+// Seed the textarea content so CodeMirror starts with a default expression.
+editorTextArea.value = `a=t>>10&7,
+plot(a)*t`
+
 const editor = (CodeMirror as any).fromTextArea(editorTextArea, {
   mode: 'javascript',
   lineNumbers: true,
   theme: 'midnight',
-  value: `a = t >> 10, // plot(a)
-a * t`,
+  smartIndent: false,
+  electricChars: false,
+  matchBrackets: true,
 })
 
 const playButton = document.querySelector<HTMLButtonElement>('#bb-play-button')
