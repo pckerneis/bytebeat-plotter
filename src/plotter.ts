@@ -1,7 +1,7 @@
-import {getEditorValue} from './editor.ts';
-import {extractExpressionFromCode} from './expression-utils.ts';
-import {floatCheckbox} from './selectors.ts';
-import {getAudioCurrentTime} from './audio-state.ts';
+import { getEditorValue } from "./editor.ts";
+import { extractExpressionFromCode } from "./expression-utils.ts";
+import { floatCheckbox } from "./selectors.ts";
+import { getAudioCurrentTime } from "./audio-state.ts";
 
 const expressionApi = `const abs = Math.abs;
 const sin = Math.sin;

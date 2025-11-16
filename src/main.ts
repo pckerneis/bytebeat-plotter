@@ -1,5 +1,5 @@
 import "./style.css";
-import { getEditorValue, initialiseEditor } from "./editor.js";
+import { initialiseEditor } from "./editor.js";
 import {
   hasShareUrlParam,
   loadFromUrl,
@@ -26,7 +26,7 @@ import {
   playButton,
   sampleRateInput,
 } from "./selectors.ts";
-import { stopPlayback } from "./project.ts";
+import { getCurrentProject, stopPlayback } from "./project.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -34,8 +34,7 @@ if (!app) {
   throw new Error("Root element #app not found");
 }
 
-const EDITOR_STORAGE_KEY = "bb-editor-code";
-
+const PROJECT_STORAGE_KEY = "bb-project";
 let initialCode = `a=plot(t>>10&7),
 a*t`;
 let initialSampleRate: number | null = null;
@@ -53,9 +52,33 @@ if (initialParams?.initialFloat) initialFloat = initialParams.initialFloat;
 
 if (!hasShareUrlParam()) {
   try {
-    const stored = window.localStorage.getItem(EDITOR_STORAGE_KEY);
-    if (stored) {
-      initialCode = stored;
+    const storedProject = window.localStorage.getItem(PROJECT_STORAGE_KEY);
+    if (storedProject) {
+      try {
+        const parsed = JSON.parse(storedProject) as {
+          code?: unknown;
+          sampleRate?: unknown;
+          classic?: unknown;
+          float?: unknown;
+        };
+        if (typeof parsed.code === "string" && parsed.code.trim().length > 0) {
+          initialCode = parsed.code;
+        }
+        if (
+          typeof parsed.sampleRate === "number" &&
+          Number.isFinite(parsed.sampleRate)
+        ) {
+          initialSampleRate = parsed.sampleRate;
+        }
+        if (typeof parsed.classic === "boolean") {
+          initialClassic = parsed.classic;
+        }
+        if (typeof parsed.float === "boolean") {
+          initialFloat = parsed.float;
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
   } catch {
     // ignore storage errors (e.g. disabled cookies)
@@ -65,14 +88,9 @@ if (!hasShareUrlParam()) {
 loadGitHubInfoFromStorage();
 
 initialiseEditor(initialCode, () => {
-  try {
-    const code = getEditorValue();
-    window.localStorage.setItem(EDITOR_STORAGE_KEY, code);
-  } catch {
-    // ignore storage errors
-  }
   updateUrlPatchFromUi();
   scheduleAudioUpdate();
+  storeProjectInLocalStorage();
 });
 
 if (sampleRateInput && initialSampleRate !== null) {
@@ -128,6 +146,15 @@ async function handleStopClick() {
   await stopPlayback();
 }
 
+function storeProjectInLocalStorage() {
+  try {
+    const project = getCurrentProject();
+    window.localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 if (playButton) {
   playButton.addEventListener("click", () => {
     if (isAudioRunning()) {
@@ -142,6 +169,7 @@ if (sampleRateInput) {
   sampleRateInput.addEventListener("change", () => {
     updateUrlPatchFromUi();
     scheduleAudioUpdate();
+    storeProjectInLocalStorage();
   });
 }
 
@@ -149,6 +177,15 @@ if (classicCheckbox) {
   classicCheckbox.addEventListener("change", () => {
     updateUrlPatchFromUi();
     scheduleAudioUpdate();
+    storeProjectInLocalStorage();
+  });
+}
+
+if (floatCheckbox) {
+  floatCheckbox.addEventListener("change", () => {
+    updateUrlPatchFromUi();
+    scheduleAudioUpdate();
+    storeProjectInLocalStorage();
   });
 }
 
