@@ -346,28 +346,33 @@ if (githubDisconnectButton) {
   });
 }
 
-updateGithubUi();
-
-if (githubToken && githubGistId) {
-  (async () => {
-    try {
-      const loaded: LoadedProject = await loadProjectFromGist(
-        githubToken as string,
-        githubGistId as string,
-      );
-      githubGistFilename = loaded.filename;
-      applyProject(loaded.project);
-      setInfo("Loaded project from last GitHub Gist.");
-    } catch {
-      githubGistId = null;
-      try {
-        window.sessionStorage.removeItem("bb-github-gist-id");
-      } catch {}
-    }
-    updateGithubUi();
-  })();
-} else {
+export function initialiseGitHubState() {
   updateGithubUi();
+
+  console.log('about to load github proj', githubToken)
+
+  if (githubToken && githubGistId) {
+    (async () => {
+      try {
+        const loaded: LoadedProject = await loadProjectFromGist(
+            githubToken as string,
+            githubGistId as string,
+        );
+        githubGistFilename = loaded.filename;
+        applyProject(loaded.project);
+        setInfo("Loaded project from last GitHub Gist.");
+      } catch {
+        githubGistId = null;
+        try {
+          window.sessionStorage.removeItem("bb-github-gist-id");
+        } catch {
+        }
+      }
+      updateGithubUi();
+    })();
+  } else {
+    updateGithubUi();
+  }
 }
 
 export function loadGitHubInfoFromStorage() {

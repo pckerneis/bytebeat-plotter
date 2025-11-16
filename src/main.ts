@@ -6,13 +6,12 @@ import {
   updateUrlPatchFromUi,
 } from "./share-url.ts";
 import { setError } from "./status.ts";
-import { loadGitHubInfoFromStorage, setupGitHubUi } from "./github-ui.ts";
-import { stopRealtimePlot, updatePlotConfigFromCode } from "./plotter.ts";
+import {initialiseGitHubState, loadGitHubInfoFromStorage, setupGitHubUi} from './github-ui.ts';
+import { updatePlotConfigFromCode } from "./plotter.ts";
 import {
   getAudioParams,
   isAudioRunning,
   scheduleAudioUpdate,
-  suspendAudioContext,
   updateAudioWorkletParams,
   updateMasterGain,
 } from "./audio-state.ts";
@@ -53,6 +52,8 @@ if (!hasShareUrlParam()) {
   }
 }
 
+loadGitHubInfoFromStorage();
+
 initialiseEditor(initialCode, () => {
   try {
     const code = getEditorValue();
@@ -63,8 +64,6 @@ initialiseEditor(initialCode, () => {
   updateUrlPatchFromUi();
   scheduleAudioUpdate();
 });
-
-loadGitHubInfoFromStorage();
 
 if (sampleRateInput && initialSampleRate !== null) {
   const sr = Math.min(
@@ -85,7 +84,7 @@ if (floatCheckbox && initialFloat !== null) {
   floatCheckbox.checked = initialFloat;
 }
 
-setupGitHubUi();
+initialiseGitHubState();
 
 async function handlePlayClick() {
   setError(null);
