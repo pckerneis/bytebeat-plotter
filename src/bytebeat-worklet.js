@@ -1,3 +1,5 @@
+import { expressionApi } from './expression-api.js';
+
 class BytebeatProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
@@ -22,26 +24,7 @@ class BytebeatProcessor extends AudioWorkletProcessor {
         try {
           // eslint-disable-next-line no-new-func
           const fnBody = `
-const abs = Math.abs;
-const sin = Math.sin;
-const cos = Math.cos;
-const tan = Math.tan;
-const asin = Math.asin;
-const acos = Math.acos;
-const atan = Math.atan;
-const tanh = Math.tanh;
-const floor = Math.floor;
-const ceil = Math.ceil;
-const round = Math.round;
-const sqrt = Math.sqrt;
-const log = Math.log;
-const exp = Math.exp;
-const pow = Math.pow;
-const PI = Math.PI;
-const TAU = Math.PI * 2;
-const min = Math.min;
-const max = Math.max;
-const random = Math.random;
+${expressionApi}
 function plot(x) { return x; }
 return Number((${expression})) || 0;
 `
