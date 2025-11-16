@@ -347,6 +347,7 @@ if (githubDisconnectButton) {
 }
 
 export function initialiseGitHubState() {
+  setupGitHubUi();
   updateGithubUi();
 
   if (githubToken && githubGistId) {
