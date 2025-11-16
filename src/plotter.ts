@@ -142,6 +142,12 @@ function drawSeriesOnCanvas(
     if (v < min) min = v;
     if (v > max) max = v;
   }
+
+  const isFloatSamplePlot = name === "sample" && !!floatCheckbox?.checked;
+  if (isFloatSamplePlot) {
+    min = -1;
+    max = 1;
+  }
   const minLabel = Number.isFinite(min) ? min : 0;
   const maxLabel = Number.isFinite(max) ? max : 0;
 
