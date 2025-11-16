@@ -1,3 +1,5 @@
+import { buildUrlParams } from "./share-url.ts";
+
 const GITHUB_API_BASE = "https://api.github.com";
 const GIST_FILENAME = "bytebeat-plotter-project.json";
 
@@ -81,6 +83,8 @@ export async function saveProjectToGist(
     targetFilename = GIST_FILENAME;
   }
 
+  const encodedProject = buildUrlParams();
+
   const payload: {
     description?: string;
     public: boolean;
@@ -91,9 +95,9 @@ export async function saveProjectToGist(
       [targetFilename]: {
         content: JSON.stringify(project, null, 2),
       },
-      "readme.txt": {
-        content:
-          "This is a bytebeat-plotter project.\nhttps://pckerneis.github.io/bytebeat-plotter/",
+      "readme.md": {
+        content: `This is a [bytebeat-plotter](https://github.com/pckerneis/bytebeat-plotter) project.
+Listen [here](https://pckerneis.github.io/bytebeat-plotter?${encodedProject}).`,
       },
     },
   };

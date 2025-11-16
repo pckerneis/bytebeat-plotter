@@ -12,19 +12,23 @@ export function hasShareUrlParam(): boolean {
   return new URLSearchParams(window.location.search).has(PATCH_PARAM_KEY);
 }
 
+export function buildUrlParams(): string {
+  const code = getEditorValue();
+  const rawSr = sampleRateInput?.value;
+  const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
+  let sr = Number.isFinite(parsedSr) ? parsedSr : 8000;
+  sr = Math.min(48000, Math.max(500, Math.floor(sr)));
+  const classic = !!classicCheckbox?.checked;
+  const float = !!floatCheckbox?.checked;
+  const params = new URLSearchParams(window.location.search);
+  const payload = { code, sr, classic, float };
+  params.set(PATCH_PARAM_KEY, encodePatchToBase64(payload));
+  return params.toString();
+}
+
 export function updateUrlPatchFromUi() {
   try {
-    const code = getEditorValue();
-    const rawSr = sampleRateInput?.value;
-    const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
-    let sr = Number.isFinite(parsedSr) ? parsedSr : 8000;
-    sr = Math.min(48000, Math.max(500, Math.floor(sr)));
-    const classic = !!classicCheckbox?.checked;
-    const float = !!floatCheckbox?.checked;
-    const params = new URLSearchParams(window.location.search);
-    const payload = { code, sr, classic, float };
-    params.set(PATCH_PARAM_KEY, encodePatchToBase64(payload));
-    const query = params.toString();
+    const query = buildUrlParams();
     const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState(null, "", newUrl);
   } catch {
