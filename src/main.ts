@@ -13,7 +13,11 @@ import {
   listBbPlotterGists,
 } from "./github-gist-storage";
 
-import type { BbProject, BbPlotterGistSummary } from "./github-gist-storage";
+import type {
+  BbProject,
+  BbPlotterGistSummary,
+  LoadedProject,
+} from "./github-gist-storage";
 import { decodePatchFromBase64, encodePatchToBase64 } from "./path-encoding.js";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -397,6 +401,7 @@ let gainNode: GainNode | null = null;
 let githubToken: string | null = null;
 let githubGistId: string | null = null;
 let githubLogin: string | null = null;
+let githubGistFilename: string | null = null;
 
 try {
   const storedToken = window.sessionStorage.getItem("bb-github-token");
@@ -551,6 +556,7 @@ if (githubSaveAsModalConfirmButton && githubSaveAsNameInput) {
         public: !isSecret,
       });
       githubGistId = result.gistId;
+      githubGistFilename = result.filename;
       try {
         window.sessionStorage.setItem("bb-github-gist-id", githubGistId);
       } catch {
@@ -1197,8 +1203,10 @@ if (githubSaveButton) {
         gistId: githubGistId,
         description: "bytebeat-plotter project",
         public: false,
+        filename: githubGistFilename,
       });
       githubGistId = result.gistId;
+      githubGistFilename = result.filename;
       try {
         window.sessionStorage.setItem("bb-github-gist-id", githubGistId);
       } catch {
@@ -1248,7 +1256,11 @@ if (githubLoadButton) {
     const itemsMarkup = gists
       .map((gist) => {
         const date = new Date(gist.updatedAt);
-        const baseLabel = `${gist.description || "bytebeat-plotter project"} — ${date.toLocaleString()}`;
+        const name =
+          gist.description && gist.description.trim().length > 0
+            ? gist.description
+            : "(unnamed project)";
+        const baseLabel = `${name} — ${date.toLocaleString()}`;
         const label =
           githubGistId && gist.id === githubGistId
             ? `${baseLabel} (last used)`
@@ -1270,7 +1282,12 @@ if (githubLoadButton) {
         if (!id) return;
 
         try {
-          const project = await loadProjectFromGist(githubToken, id);
+          const loaded: LoadedProject = await loadProjectFromGist(
+            githubToken,
+            id,
+          );
+          const project = loaded.project;
+          githubGistFilename = loaded.filename;
           githubGistId = id;
           try {
             window.sessionStorage.setItem("bb-github-gist-id", githubGistId);
@@ -1297,6 +1314,7 @@ if (githubDisconnectButton) {
   githubDisconnectButton.addEventListener("click", () => {
     githubToken = null;
     githubGistId = null;
+    githubGistFilename = null;
     githubLogin = null;
     try {
       window.sessionStorage.removeItem("bb-github-token");
@@ -1318,8 +1336,12 @@ updateGithubUi();
 if (githubToken && githubGistId) {
   (async () => {
     try {
-      const project = await loadProjectFromGist(githubToken as string, githubGistId as string);
-      applyProject(project);
+      const loaded: LoadedProject = await loadProjectFromGist(
+        githubToken as string,
+        githubGistId as string,
+      );
+      githubGistFilename = loaded.filename;
+      applyProject(loaded.project);
       setInfo("Loaded project from last GitHub Gist.");
     } catch {
       githubGistId = null;

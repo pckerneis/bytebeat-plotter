@@ -49,11 +49,13 @@ export type SaveProjectOptions = {
   gistId?: string | null;
   description?: string;
   public?: boolean;
+  filename?: string | null;
 };
 
 export type SaveProjectResult = {
   gistId: string;
   htmlUrl: string | null;
+  filename: string;
 };
 
 export async function saveProjectToGist(
@@ -61,15 +63,28 @@ export async function saveProjectToGist(
   project: BbProject,
   options: SaveProjectOptions = {},
 ): Promise<SaveProjectResult> {
-  const { gistId, description, public: isPublic } = options;
-  const sanitizedDescription = description?.replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) ?? GIST_FILENAME;
-  const filename = description ? `bytebeat-plotter-${sanitizedDescription}.json` : GIST_FILENAME;
+  const { gistId, description, public: isPublic, filename } = options;
+
+  let targetFilename: string;
+  if (filename && filename.trim()) {
+    targetFilename = filename.trim();
+  } else if (description && description.trim()) {
+    const sanitizedDescription = description
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "project";
+    targetFilename = `bytebeat-plotter-${sanitizedDescription}.json`;
+  } else {
+    targetFilename = GIST_FILENAME;
+  }
 
   const payload = {
     description: description || "bytebeat-plotter project",
     public: isPublic ?? false,
     files: {
-      [filename]: {
+      [targetFilename]: {
         content: JSON.stringify(project, null, 2),
       },
     },
@@ -102,13 +117,18 @@ export async function saveProjectToGist(
     html_url?: string;
   };
 
-  return { gistId: data.id, htmlUrl: data.html_url ?? null };
+  return { gistId: data.id, htmlUrl: data.html_url ?? null, filename: targetFilename };
 }
+
+export type LoadedProject = {
+  project: BbProject;
+  filename: string;
+};
 
 export async function loadProjectFromGist(
   token: string,
   gistId: string,
-): Promise<BbProject> {
+): Promise<LoadedProject> {
   if (!gistId.trim()) {
     throw new Error("Gist ID is empty.");
   }
@@ -142,17 +162,22 @@ export async function loadProjectFromGist(
   };
 
   const files = data.files || {};
-  const file = files[GIST_FILENAME];
+
+  // Find first JSON file with "bytebeat-plotter-" prefix
+  const file = Object.values(files).find(
+    (file) => file?.filename?.startsWith("bytebeat-plotter-"),
+  );
 
   if (!file || !file.content) {
     throw new Error(
-      `Gist does not contain expected file "${GIST_FILENAME}".`,
+      `Gist does not contain expected file "bytebeat-plotter-*.json".`,
     );
   }
 
   try {
     const parsed = JSON.parse(file.content) as BbProject;
-    return parsed;
+    const filename = file.filename || GIST_FILENAME;
+    return { project: parsed, filename };
   } catch (error) {
     console.error("Failed to parse project JSON from Gist", error);
     throw new Error("Invalid project JSON in Gist.");
