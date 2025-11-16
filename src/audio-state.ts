@@ -53,6 +53,13 @@ export function getAudioParams(): AudioParams | null {
   return { expression, targetSampleRate, classic, float };
 }
 
+export function getAudioCurrentTime(): number {
+  if (audioContext) {
+    return audioContext.currentTime;
+  }
+  return performance.now() / 1000;
+}
+
 export async function updateAudioParams() {
   if (!audioContext || !bytebeatNode) return;
 

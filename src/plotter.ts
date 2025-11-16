@@ -1,8 +1,9 @@
-import { getEditorValue } from "./editor.ts";
-import { extractExpressionFromCode } from "./expression-utils.ts";
-import { floatCheckbox } from "./selectors.ts";
+import {getEditorValue} from './editor.ts';
+import {extractExpressionFromCode} from './expression-utils.ts';
+import {floatCheckbox} from './selectors.ts';
+import {getAudioCurrentTime} from './audio-state.ts';
 
-  const expressionApi = `const abs = Math.abs;
+const expressionApi = `const abs = Math.abs;
 const sin = Math.sin;
 const cos = Math.cos;
 const tan = Math.tan;
@@ -23,42 +24,25 @@ const min = Math.min;
 const max = Math.max;
 const random = Math.random;`;
 
+const WINDOW_SIZE = 8000;
+
 const plotsContainer = document.querySelector<HTMLDivElement>(
   "#bb-plots-container",
 );
 
 interface PlotConfig {
   evalFn: (t: number) => { sample: number; plots: number[] };
-  windowSize: number;
   plotNames: string[];
 }
 
-function buildPlotPath(
-  samples: number[],
-  width: number,
-  height: number,
-): string {
-  if (samples.length === 0) return "";
+type PlotCanvasEntry = {
+  container: HTMLElement;
+  header: HTMLElement;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+};
 
-  let min = samples[0];
-  let max = samples[0];
-  for (const v of samples) {
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-
-  const range = max - min || 1;
-  const n = samples.length;
-  let path = "";
-
-  samples.forEach((value, index) => {
-    const x = (index / Math.max(1, n - 1)) * width;
-    const y = height - ((value - min) / range) * height;
-    path += `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)} `;
-  });
-
-  return path.trim();
-}
+const plotCanvases = new Map<string, PlotCanvasEntry>();
 
 function buildPlotConfig(code: string): PlotConfig | null {
   const expression = extractExpressionFromCode(code);
@@ -134,8 +118,61 @@ return { sample: Number(sample) || 0, plots: plotState.values.slice() };
     return inner(t, state);
   };
 
-  const DEFAULT_WINDOW = 8000;
-  return { evalFn, windowSize: DEFAULT_WINDOW, plotNames };
+  return { evalFn, plotNames };
+}
+
+function drawSeriesOnCanvas(
+  entry: PlotCanvasEntry,
+  name: string,
+  samples: number[],
+  width: number,
+  height: number,
+) {
+  const { header, ctx, canvas } = entry;
+
+  if (!samples.length) {
+    header.textContent = `${name} (no data)`;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  let min = samples[0];
+  let max = samples[0];
+  for (const v of samples) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const minLabel = Number.isFinite(min) ? min : 0;
+  const maxLabel = Number.isFinite(max) ? max : 0;
+
+  header.innerHTML = `${name}<br /><span class="bb-plot-range">min: ${minLabel}</span><span class="bb-plot-range">max: ${maxLabel}</span>`;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const range = max - min || 1;
+  const n = samples.length;
+
+  const step = Math.max(1, Math.floor(n / width));
+
+  ctx.beginPath();
+  ctx.strokeStyle = "#0ff";
+  ctx.lineWidth = 1;
+
+  let first = true;
+  for (let i = 0; i < n; i += step) {
+    const value = samples[i];
+    const x = (i / Math.max(1, n - 1)) * width;
+    const y = height - ((value - min) / range) * height;
+
+    if (first) {
+      ctx.moveTo(x, y);
+      first = false;
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+
+  ctx.stroke();
 }
 
 function renderPlots(series: Record<string, number[]>) {
@@ -144,46 +181,64 @@ function renderPlots(series: Record<string, number[]>) {
   const entries = Object.entries(series);
   if (entries.length === 0) {
     plotsContainer.innerHTML = '<p class="bb-placeholder">No data to plot.</p>';
+    plotCanvases.clear();
     return;
   }
 
   const width = 400;
-  const height = 140;
+  const height = 80;
 
-  plotsContainer.innerHTML = entries
-    .map(([name, samples]) => {
-      if (!samples.length) {
-        return `
-        <section class="bb-plot">
-          <header class="bb-plot-header">${name} (no data)</header>
-        </section>`;
+  for (const [name, samples] of entries) {
+    let entry = plotCanvases.get(name);
+
+    if (!entry) {
+      const section = document.createElement("section");
+      section.className = "bb-plot";
+
+      const header = document.createElement("header");
+      header.className = "bb-plot-header";
+      section.appendChild(header);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.className = "bb-plot-canvas";
+      section.appendChild(canvas);
+
+      plotsContainer.appendChild(section);
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        continue;
       }
 
-      let min = samples[0];
-      let max = samples[0];
-      for (const v of samples) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-      const minLabel = Number.isFinite(min) ? min : 0;
-      const maxLabel = Number.isFinite(max) ? max : 0;
+      entry = { container: section, header, canvas, ctx };
+      plotCanvases.set(name, entry);
+    }
 
-      const path = buildPlotPath(samples, width, height);
-      return `
-        <section class="bb-plot">
-          <header class="bb-plot-header">${name}<br /><span class="bb-plot-range">min: ${minLabel}</span><span class="bb-plot-range">max: ${maxLabel}</span></header>
-          <svg viewBox="0 0 ${width} ${height}" class="bb-plot-svg" role="img" aria-label="Plot of ${name}">
-            <path d="${path}" />
-          </svg>
-        </section>`;
-    })
-    .join("");
+    if (entry.container.parentElement !== plotsContainer) {
+      plotsContainer.appendChild(entry.container);
+    }
+
+    drawSeriesOnCanvas(entry, name, samples, width, height);
+  }
+
+  for (const key of Array.from(plotCanvases.keys())) {
+    if (!series[key]) {
+      const entry = plotCanvases.get(key);
+      if (entry && entry.container.parentElement === plotsContainer) {
+        plotsContainer.removeChild(entry.container);
+      }
+      plotCanvases.delete(key);
+    }
+  }
 }
 
 let currentPlotConfig: PlotConfig | null = null;
 let plotAnimationId: number | null = null;
 let lastPlotSampleRate = 8000;
-let plotStartMs = performance.now();
+let lastRenderTime = 0;
+const TARGET_INTERVAL_MS = 1000 / 30; // ~30 FPS cap for plotting
 
 function startRealtimePlot() {
   if (!plotAnimationId) {
@@ -202,31 +257,39 @@ export function updatePlotConfigFromCode(targetSampleRate: number) {
   const code = getEditorValue();
   currentPlotConfig = buildPlotConfig(code);
   lastPlotSampleRate = targetSampleRate;
-  plotStartMs = performance.now();
   startRealtimePlot();
 }
 
-function realtimePlotLoop() {
+function realtimePlotLoop(timestamp: number) {
   plotAnimationId = null;
+
+  if (timestamp - lastRenderTime < TARGET_INTERVAL_MS) {
+    plotAnimationId = window.requestAnimationFrame(realtimePlotLoop);
+    return;
+  }
+  lastRenderTime = timestamp;
+
   if (!currentPlotConfig) {
     plotAnimationId = window.requestAnimationFrame(realtimePlotLoop);
     return;
   }
 
-  const { evalFn, windowSize, plotNames } = currentPlotConfig;
+  const { evalFn, plotNames } = currentPlotConfig;
   const series: Record<string, number[]> = { sample: [] };
   const plotSeries: number[][] = [];
 
-  const now = performance.now();
-  const elapsedSeconds = (now - plotStartMs) / 1000;
+  const elapsedSeconds = getAudioCurrentTime();
   const baseT = Math.max(
     0,
-    Math.floor(elapsedSeconds * lastPlotSampleRate) - windowSize + 1,
+    Math.floor(elapsedSeconds * lastPlotSampleRate) - WINDOW_SIZE + 1,
   );
 
   try {
     const isFloat = !!floatCheckbox?.checked;
-    for (let i = 0; i < windowSize; i += 1) {
+    const maxPoints = 800; // limit computation and plotting per frame
+    const step = Math.max(1, Math.floor(WINDOW_SIZE / maxPoints));
+
+    for (let i = 0; i < WINDOW_SIZE; i += step) {
       const t = baseT + i;
       const tArg = isFloat ? t / lastPlotSampleRate : t;
       const { sample, plots } = evalFn(tArg);
