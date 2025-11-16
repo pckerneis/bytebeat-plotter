@@ -13,8 +13,8 @@ import type {
   BbPlotterGistSummary,
   LoadedProject,
 } from "./github-gist-storage";
-import { decodePatchFromBase64, encodePatchToBase64 } from "./path-encoding.js";
 import { editor, getEditorValue, initialiseEditor } from "./editor.js";
+import {hasShareUrlParam, loadFromUrl, updateUrlPatchFromUi} from './share-url.ts';
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -23,8 +23,6 @@ if (!app) {
 }
 
 const EDITOR_STORAGE_KEY = "bb-editor-code";
-const PATCH_PARAM_KEY = "p";
-
 
 let initialCode = `a=plot(t>>10&7),
 a*t`;
@@ -32,41 +30,17 @@ let initialSampleRate: number | null = null;
 let initialClassic: boolean | null = null;
 let initialFloat: boolean | null = null;
 
-try {
-  const params = new URLSearchParams(window.location.search);
-  const rawPatch = params.get(PATCH_PARAM_KEY);
-  if (rawPatch) {
-    const parsed = decodePatchFromBase64(rawPatch) as
-      | {
-          code?: unknown;
-          sr?: unknown;
-          classic?: unknown;
-          float?: unknown;
-        }
-      | null;
-    if (parsed) {
-      if (typeof parsed.code === "string" && parsed.code.trim().length > 0) {
-        initialCode = parsed.code;
-      }
-      if (typeof parsed.sr === "number" && Number.isFinite(parsed.sr)) {
-        initialSampleRate = parsed.sr;
-      }
-      if (typeof parsed.classic === "boolean") {
-        initialClassic = parsed.classic;
-      }
-      if (typeof parsed.float === "boolean") {
-        initialFloat = parsed.float;
-      }
-    }
-  }
-} catch {
-  // ignore malformed URL patches
-}
+const initialParams = loadFromUrl();
 
-if (!new URLSearchParams(window.location.search).has(PATCH_PARAM_KEY)) {
+if (initialParams?.initialCode) initialCode = initialParams.initialCode;
+if (initialParams?.initialSampleRate) initialSampleRate = initialParams.initialSampleRate;
+if (initialParams?.initialClassic) initialClassic = initialParams.initialClassic;
+if (initialParams?.initialFloat) initialFloat = initialParams.initialFloat;
+
+if (!hasShareUrlParam()) {
   try {
     const stored = window.localStorage.getItem(EDITOR_STORAGE_KEY);
-    if (stored && typeof stored === "string") {
+    if (stored) {
       initialCode = stored;
     }
   } catch {
@@ -199,35 +173,6 @@ if (floatCheckbox && initialFloat !== null) {
   floatCheckbox.checked = initialFloat;
 }
 
-function getCurrentPatchState(): {
-  code: string;
-  sr: number;
-  classic: boolean;
-  float: boolean;
-} {
-  const code = getEditorValue();
-  const rawSr = sampleRateInput?.value;
-  const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
-  let sr = Number.isFinite(parsedSr) ? parsedSr : 8000;
-  sr = Math.min(48000, Math.max(500, Math.floor(sr)));
-  const classic = !!classicCheckbox?.checked;
-  const float = !!floatCheckbox?.checked;
-  return { code, sr, classic, float };
-}
-
-function updateUrlPatchFromUi() {
-  try {
-    const { code, sr, classic, float } = getCurrentPatchState();
-    const params = new URLSearchParams(window.location.search);
-    const payload = { code, sr, classic, float };
-    params.set(PATCH_PARAM_KEY, encodePatchToBase64(payload));
-    const query = params.toString();
-    const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
-    window.history.replaceState(null, "", newUrl);
-  } catch {
-    // ignore URL serialization errors
-  }
-}
 
 async function ensureAudioGraph(
   expression: string,

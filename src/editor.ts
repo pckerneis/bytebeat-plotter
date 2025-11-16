@@ -30,3 +30,7 @@ export function initialiseEditor(initialCode: string) {
 export function getEditorValue(): string {
     return editor?.getValue() as string;
 }
+
+export function setEditorValue(value: string) {
+    editor?.setValue(value);
+}
