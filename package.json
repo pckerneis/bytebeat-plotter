@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\""
   },
   "devDependencies": {
     "@types/codemirror": "^5.60.17",

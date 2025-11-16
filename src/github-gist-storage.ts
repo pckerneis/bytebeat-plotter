@@ -69,12 +69,13 @@ export async function saveProjectToGist(
   if (filename && filename.trim()) {
     targetFilename = filename.trim();
   } else if (description && description.trim()) {
-    const sanitizedDescription = description
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 40) || "project";
+    const sanitizedDescription =
+      description
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "project";
     targetFilename = `bytebeat-plotter-${sanitizedDescription}.json`;
   } else {
     targetFilename = GIST_FILENAME;
@@ -132,7 +133,11 @@ export async function saveProjectToGist(
     html_url?: string;
   };
 
-  return { gistId: data.id, htmlUrl: data.html_url ?? null, filename: targetFilename };
+  return {
+    gistId: data.id,
+    htmlUrl: data.html_url ?? null,
+    filename: targetFilename,
+  };
 }
 
 export type LoadedProject = {
@@ -179,8 +184,8 @@ export async function loadProjectFromGist(
   const files = data.files || {};
 
   // Find first JSON file with "bytebeat-plotter-" prefix
-  const file = Object.values(files).find(
-    (file) => file?.filename?.startsWith("bytebeat-plotter-"),
+  const file = Object.values(files).find((file) =>
+    file?.filename?.startsWith("bytebeat-plotter-"),
   );
 
   if (!file || !file.content) {
@@ -223,9 +228,7 @@ export async function listBbPlotterGists(
   );
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to list GitHub gists (status ${response.status}).`,
-    );
+    throw new Error(`Failed to list GitHub gists (status ${response.status}).`);
   }
 
   const data = (await response.json()) as Array<{
@@ -246,7 +249,9 @@ export async function listBbPlotterGists(
   for (const gist of data) {
     const files = gist.files || {};
     const hasProjectFile = Object.keys(files).some(
-      (key) => key === GIST_FILENAME || files[key]?.filename?.startsWith("bytebeat-plotter-"),
+      (key) =>
+        key === GIST_FILENAME ||
+        files[key]?.filename?.startsWith("bytebeat-plotter-"),
     );
     const desc = gist.description ?? "";
     if (!hasProjectFile) continue;

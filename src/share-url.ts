@@ -1,10 +1,10 @@
-import {getEditorValue} from './editor.ts';
-import {decodePatchFromBase64, encodePatchToBase64} from './path-encoding.ts';
+import { getEditorValue } from "./editor.ts";
+import { decodePatchFromBase64, encodePatchToBase64 } from "./path-encoding.ts";
 
 const PATCH_PARAM_KEY = "p";
 
 const sampleRateInput =
-    document.querySelector<HTMLInputElement>("#bb-sample-rate");
+  document.querySelector<HTMLInputElement>("#bb-sample-rate");
 const classicCheckbox = document.querySelector<HTMLInputElement>("#bb-classic");
 const floatCheckbox = document.querySelector<HTMLInputElement>("#bb-float");
 
@@ -49,14 +49,12 @@ export function loadFromUrl(): InitialParams | null {
     const params = new URLSearchParams(window.location.search);
     const rawPatch = params.get(PATCH_PARAM_KEY);
     if (rawPatch) {
-      const parsed = decodePatchFromBase64(rawPatch) as
-          | {
+      const parsed = decodePatchFromBase64(rawPatch) as {
         code?: unknown;
         sr?: unknown;
         classic?: unknown;
         float?: unknown;
-      }
-          | null;
+      } | null;
       if (parsed) {
         if (typeof parsed.code === "string" && parsed.code.trim().length > 0) {
           initialCode = parsed.code;
@@ -81,5 +79,5 @@ export function loadFromUrl(): InitialParams | null {
     initialSampleRate,
     initialClassic,
     initialFloat,
-  }
+  };
 }
