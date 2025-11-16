@@ -302,3 +302,7 @@ body {
 .bb-modal-list-item:hover {
   background: rgba(255, 255, 255, 0.137);
 }
+
+.bb-checkbox-label {
+  font-size: 0.8rem;
+}

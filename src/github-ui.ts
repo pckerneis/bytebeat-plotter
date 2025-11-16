@@ -349,8 +349,6 @@ if (githubDisconnectButton) {
 export function initialiseGitHubState() {
   updateGithubUi();
 
-  console.log("about to load github proj", githubToken);
-
   if (githubToken && githubGistId) {
     (async () => {
       try {
