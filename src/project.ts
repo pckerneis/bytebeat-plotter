@@ -1,5 +1,8 @@
 import type { BbProject } from "./github-gist-storage.ts";
 import { getEditorValue, setEditorValue } from "./editor.ts";
+import {suspendAudioContext, updateAudioParams} from './audio-state.ts';
+import {stopRealtimePlot} from './plotter.ts';
+import {playButton} from './selectors.ts';
 
 const sampleRateInput =
   document.querySelector<HTMLInputElement>("#bb-sample-rate");
@@ -21,4 +24,15 @@ export function applyProject(project: BbProject) {
   if (classicCheckbox) classicCheckbox.checked = project.classic;
   if (floatCheckbox) floatCheckbox.checked = project.float;
   void updateAudioParams();
+}
+
+export async function stopPlayback() {
+  await suspendAudioContext();
+
+  stopRealtimePlot();
+
+  if (playButton) {
+    playButton.textContent = "Play";
+    playButton.classList.remove("bb-play-button--active");
+  }
 }

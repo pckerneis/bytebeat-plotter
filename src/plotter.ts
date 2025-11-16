@@ -1,5 +1,7 @@
 import { expressionApi } from "./expression-api";
 import { getEditorValue } from "./editor.ts";
+import {extractExpressionFromCode} from './expression-utils.ts';
+import {floatCheckbox} from './selectors.ts';
 
 const plotsContainer = document.querySelector<HTMLDivElement>(
   "#bb-plots-container",

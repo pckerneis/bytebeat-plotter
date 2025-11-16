@@ -16,6 +16,8 @@ import {
   updateAudioWorkletParams,
   updateMasterGain,
 } from "./audio-state.ts";
+import {classicCheckbox, floatCheckbox, gainInput, gainValueSpan, playButton, sampleRateInput} from './selectors.ts';
+import {stopPlayback} from './project.ts';
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -61,14 +63,6 @@ initialiseEditor(initialCode, () => {
   updateUrlPatchFromUi();
   scheduleAudioUpdate();
 });
-
-const playButton = document.querySelector<HTMLButtonElement>("#bb-play-button");
-const sampleRateInput =
-  document.querySelector<HTMLInputElement>("#bb-sample-rate");
-const classicCheckbox = document.querySelector<HTMLInputElement>("#bb-classic");
-const floatCheckbox = document.querySelector<HTMLInputElement>("#bb-float");
-const gainInput = document.querySelector<HTMLInputElement>("#bb-gain");
-const gainValueSpan = document.querySelector<HTMLSpanElement>("#bb-gain-value");
 
 loadGitHubInfoFromStorage();
 
@@ -122,14 +116,7 @@ async function handlePlayClick() {
 }
 
 async function handleStopClick() {
-  await suspendAudioContext();
-
-  stopRealtimePlot();
-
-  if (playButton) {
-    playButton.textContent = "Play";
-    playButton.classList.remove("bb-play-button--active");
-  }
+  await stopPlayback();
 }
 
 if (playButton) {
@@ -158,7 +145,7 @@ if (classicCheckbox) {
 
 if (gainInput) {
   gainInput.addEventListener("input", () => {
-    const raw = gainInput.value;
+    const raw = gainInput?.value;
     const parsed = raw ? Number(raw) : Number.NaN;
 
     if (gainValueSpan) {

@@ -1,19 +1,13 @@
 import { setError, setInfo } from "./status.ts";
 import { updatePlotConfigFromCode } from "./plotter.ts";
 import { getEditorValue } from "./editor.ts";
+import {extractExpressionFromCode} from './expression-utils.ts';
+import {classicCheckbox, floatCheckbox, sampleRateInput} from './selectors.ts';
 
 let audioContext: AudioContext | null = null;
 let bytebeatNode: AudioWorkletNode | null = null;
 let gainNode: GainNode | null = null;
 let hotReloadTimer: number | null = null;
-
-const playButton = document.querySelector<HTMLButtonElement>("#bb-play-button");
-const sampleRateInput =
-  document.querySelector<HTMLInputElement>("#bb-sample-rate");
-const classicCheckbox = document.querySelector<HTMLInputElement>("#bb-classic");
-const floatCheckbox = document.querySelector<HTMLInputElement>("#bb-float");
-const gainInput = document.querySelector<HTMLInputElement>("#bb-gain");
-const gainValueSpan = document.querySelector<HTMLSpanElement>("#bb-gain-value");
 
 type AudioParams = {
   expression: string;
@@ -21,14 +15,6 @@ type AudioParams = {
   classic: boolean;
   float: boolean;
 };
-
-function extractExpressionFromCode(code: string): string {
-  return code
-    .split("\n")
-    .map((line) => line.replace(/\/\/.*$/, ""))
-    .join("\n")
-    .trim();
-}
 
 export function getAudioParams(): AudioParams | null {
   const code = getEditorValue();
@@ -63,7 +49,7 @@ export function getAudioParams(): AudioParams | null {
   return { expression, targetSampleRate, classic, float };
 }
 
-async function updateAudioParams() {
+export async function updateAudioParams() {
   if (!audioContext || !bytebeatNode) return;
 
   const params = getAudioParams();

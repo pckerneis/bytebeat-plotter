@@ -7,7 +7,7 @@ import {
   validateGithubToken,
 } from "./github-gist-storage.ts";
 import { setError, setInfo } from "./status.ts";
-import { applyProject, getCurrentProject } from "./project.ts";
+import {applyProject, getCurrentProject, stopPlayback} from './project.ts';
 
 let githubToken: string | null = null;
 let githubGistId: string | null = null;
@@ -312,9 +312,7 @@ if (githubLoadButton) {
             setInfo(`Loaded project from GitHub Gist.`);
             updateGithubUi();
             closeGithubLoadModal();
-
-            // TODO
-            // handleStopClick();
+            await stopPlayback();
           } catch (error) {
             console.error("Failed to load project from GitHub Gist", error);
             if (githubLoadModalError) {
