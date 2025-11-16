@@ -440,14 +440,6 @@ export function setupGitHubUi() {
         return;
       }
 
-      let name = rawName.trim().toLowerCase();
-      name = name.replace(/[^a-z0-9-]+/g, "-");
-      name = name.replace(/-+/g, "-").replace(/^-|-$/g, "");
-      if (!name) name = "project";
-      if (name.length > 40) {
-        name = name.slice(0, 40);
-      }
-
       const isPublic = !!githubSaveAsPublicCheckbox?.checked;
 
       githubSaveAsModalConfirmButton.disabled = true;
