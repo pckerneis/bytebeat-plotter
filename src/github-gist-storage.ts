@@ -1,5 +1,5 @@
 const GITHUB_API_BASE = "https://api.github.com";
-const GIST_FILENAME = "bb-plotter-project.json";
+const GIST_FILENAME = "bytebeat-plotter-project.json";
 
 export interface BbProject {
   code: string;
@@ -62,12 +62,14 @@ export async function saveProjectToGist(
   options: SaveProjectOptions = {},
 ): Promise<SaveProjectResult> {
   const { gistId, description, public: isPublic } = options;
+  const sanitizedDescription = description?.replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) ?? GIST_FILENAME;
+  const filename = description ? `bytebeat-plotter-${sanitizedDescription}.json` : GIST_FILENAME;
 
   const payload = {
-    description: description || "bb-plotter project",
+    description: description || "bytebeat-plotter project",
     public: isPublic ?? false,
     files: {
-      [GIST_FILENAME]: {
+      [filename]: {
         content: JSON.stringify(project, null, 2),
       },
     },
@@ -204,16 +206,14 @@ export async function listBbPlotterGists(
   for (const gist of data) {
     const files = gist.files || {};
     const hasProjectFile = Object.keys(files).some(
-      (key) => key === GIST_FILENAME || files[key]?.filename === GIST_FILENAME,
+      (key) => key === GIST_FILENAME || files[key]?.filename?.startsWith("bytebeat-plotter-"),
     );
     const desc = gist.description ?? "";
-    const looksLikeProject =
-      hasProjectFile || desc.toLowerCase().includes("bb-plotter");
-    if (!looksLikeProject) continue;
+    if (!hasProjectFile) continue;
 
     results.push({
       id: gist.id,
-      description: desc || "bb-plotter project",
+      description: desc,
       updatedAt: gist.updated_at,
       htmlUrl: gist.html_url ?? null,
     });

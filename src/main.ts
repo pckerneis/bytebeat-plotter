@@ -123,8 +123,7 @@ app.innerHTML = `
         <h2 id="bb-github-modal-title" class="bb-modal-title">Connect to GitHub</h2>
         <p class="bb-modal-body">
           Create a <strong>fine-grained personal access token</strong> on GitHub with the
-          <code>gist</code> permission, then paste it below. The token is only kept in this
-          browser tab and is never stored.
+          <code>gist</code> permission, then paste it below.
         </p>
         <p class="bb-modal-body">
           Open GitHub token settings:
@@ -173,6 +172,55 @@ app.innerHTML = `
         </div>
       </div>
     </div>
+    <div id="bb-github-save-as-modal" class="bb-modal" aria-hidden="true">
+      <div class="bb-modal-backdrop"></div>
+      <div
+        class="bb-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bb-github-save-as-modal-title"
+      >
+        <h2 id="bb-github-save-as-modal-title" class="bb-modal-title">Save project as</h2>
+        <p class="bb-modal-body">
+          Choose a name for this project. It will be used as the GitHub Gist description.
+        </p>
+        <label class="bb-modal-label" for="bb-github-save-as-name">
+          Name
+        </label>
+        <input
+          id="bb-github-save-as-name"
+          class="bb-modal-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <label class="bb-modal-label" for="bb-github-save-as-secret">
+          <input
+            id="bb-github-save-as-secret"
+            type="checkbox"
+            style="margin-right: 0.35rem;"
+          />
+          Secret gist (not public)
+        </label>
+        <p id="bb-github-save-as-modal-error" class="bb-modal-error" aria-live="polite"></p>
+        <div class="bb-modal-actions">
+          <button
+            id="bb-github-save-as-modal-cancel"
+            class="bb-button bb-button--ghost"
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            id="bb-github-save-as-modal-confirm"
+            class="bb-button"
+            type="button"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
     <div id="bb-github-load-modal" class="bb-modal" aria-hidden="true">
       <div class="bb-modal-backdrop"></div>
       <div
@@ -183,7 +231,7 @@ app.innerHTML = `
       >
         <h2 id="bb-github-load-modal-title" class="bb-modal-title">Load from GitHub</h2>
         <p class="bb-modal-body">
-          Select a <code>bb-plotter</code> project from your GitHub gists.
+          Select a <code>bytebeat-plotter</code> project from your GitHub gists.
         </p>
         <div id="bb-github-load-list" class="bb-modal-list"></div>
         <p id="bb-github-load-modal-error" class="bb-modal-error" aria-live="polite"></p>
@@ -324,6 +372,24 @@ const githubLoadModalCancelButton = document.querySelector<HTMLButtonElement>(
 const githubRememberSessionCheckbox = document.querySelector<HTMLInputElement>(
   "#bb-github-remember-session",
 );
+const githubSaveAsModal = document.querySelector<HTMLDivElement>(
+  "#bb-github-save-as-modal",
+);
+const githubSaveAsNameInput = document.querySelector<HTMLInputElement>(
+  "#bb-github-save-as-name",
+);
+const githubSaveAsSecretCheckbox = document.querySelector<HTMLInputElement>(
+  "#bb-github-save-as-secret",
+);
+const githubSaveAsModalError = document.querySelector<HTMLParagraphElement>(
+  "#bb-github-save-as-modal-error",
+);
+const githubSaveAsModalCancelButton = document.querySelector<HTMLButtonElement>(
+  "#bb-github-save-as-modal-cancel",
+);
+const githubSaveAsModalConfirmButton = document.querySelector<HTMLButtonElement>(
+  "#bb-github-save-as-modal-confirm",
+);
 
 let audioContext: AudioContext | null = null;
 let bytebeatNode: AudioWorkletNode | null = null;
@@ -334,12 +400,22 @@ let githubLogin: string | null = null;
 
 try {
   const storedToken = window.sessionStorage.getItem("bb-github-token");
+  const storedGistId = window.sessionStorage.getItem("bb-github-gist-id");
+
   if (storedToken && storedToken.trim()) {
     githubToken = storedToken;
-  }
-  const storedGistId = window.sessionStorage.getItem("bb-github-gist-id");
-  if (storedGistId && storedGistId.trim()) {
-    githubGistId = storedGistId;
+    if (storedGistId && storedGistId.trim()) {
+      githubGistId = storedGistId;
+    }
+  } else {
+    githubGistId = null;
+    if (storedGistId && storedGistId.trim()) {
+      try {
+        window.sessionStorage.removeItem("bb-github-gist-id");
+      } catch {
+        // ignore
+      }
+    }
   }
 } catch {
   // ignore sessionStorage errors
@@ -430,17 +506,29 @@ async function ensureAudioGraph(
 }
 
 if (githubSaveAsButton) {
-  githubSaveAsButton.addEventListener("click", async () => {
+  githubSaveAsButton.addEventListener("click", () => {
+    if (!githubToken) {
+      openGithubModal();
+      return;
+    }
+    openGithubSaveAsModal();
+  });
+}
+
+if (githubSaveAsModalConfirmButton && githubSaveAsNameInput) {
+  githubSaveAsModalConfirmButton.addEventListener("click", async () => {
     if (!githubToken) {
       openGithubModal();
       return;
     }
 
-    const rawName = window.prompt(
-      "Enter a name for this project (used in the GitHub Gist description):",
-      "my-project",
-    );
-    if (!rawName) return;
+    const rawName = githubSaveAsNameInput.value;
+    if (!rawName || !rawName.trim()) {
+      if (githubSaveAsModalError) {
+        githubSaveAsModalError.textContent = "Please enter a name.";
+      }
+      return;
+    }
 
     let name = rawName.trim().toLowerCase();
     name = name.replace(/[^a-z0-9-]+/g, "-");
@@ -450,14 +538,17 @@ if (githubSaveAsButton) {
       name = name.slice(0, 40);
     }
 
-    const description = `bb-plotter-${name}`;
+    const isSecret = !!githubSaveAsSecretCheckbox?.checked;
+
+    githubSaveAsModalConfirmButton.disabled = true;
+    if (githubSaveAsModalError) githubSaveAsModalError.textContent = "Saving...";
 
     try {
       const project = getCurrentProject();
       const result = await saveProjectToGist(githubToken, project, {
         gistId: null,
-        description,
-        public: false,
+        description: name,
+        public: !isSecret,
       });
       githubGistId = result.gistId;
       try {
@@ -465,26 +556,51 @@ if (githubSaveAsButton) {
       } catch {
         // ignore
       }
-      setError(`Saved project as ${description}.`);
+      closeGithubSaveAsModal();
+      updateGithubUi();
+      setInfo(`Saved project as ${description}.`);
     } catch (error) {
       console.error("Failed to save project to GitHub Gist", error);
-      setError("Failed to save project to GitHub.");
+      if (githubSaveAsModalError) {
+        githubSaveAsModalError.textContent = "Failed to save project to GitHub.";
+      }
+    } finally {
+      githubSaveAsModalConfirmButton.disabled = false;
     }
   });
 }
 
-function setError(message: string | null) {
+function setStatus(message: string | null, kind: "error" | "info") {
   if (!errorSpan) return;
   errorSpan.textContent = message ?? "";
+  errorSpan.classList.remove("bb-error--error", "bb-error--info");
+  if (!message) return;
+  if (kind === "error") {
+    errorSpan.classList.add("bb-error--error");
+  } else {
+    errorSpan.classList.add("bb-error--info");
+  }
+}
+
+function setError(message: string | null) {
+  setStatus(message, "error");
+}
+
+function setInfo(message: string | null) {
+  setStatus(message, "info");
 }
 
 function updateGithubUi() {
   const isConnected = !!githubToken;
+  const hasGist = !!githubGistId;
   if (githubConnectButton) {
     githubConnectButton.hidden = isConnected;
   }
   if (githubActionsContainer) {
     githubActionsContainer.hidden = !isConnected;
+  }
+  if (githubSaveButton) {
+    githubSaveButton.hidden = !isConnected || !hasGist;
   }
 }
 
@@ -526,7 +642,7 @@ function getAudioParams(): AudioParams | null {
     return null;
   }
 
-  setError("Compiled");
+  setInfo("Compiled");
 
   const rawSr = sampleRateInput?.value;
   const parsedSr = rawSr ? Number(rawSr) : Number.NaN;
@@ -574,7 +690,7 @@ async function updateAudioParams() {
     float,
   });
 
-  setError("Compiled");
+  setInfo("Compiled");
 
   updatePlotConfigFromCode(targetSampleRate);
 
@@ -963,6 +1079,22 @@ function closeGithubLoadModal() {
   githubLoadModal.setAttribute("aria-hidden", "true");
 }
 
+function openGithubSaveAsModal() {
+  if (!githubSaveAsModal) return;
+  githubSaveAsModal.setAttribute("aria-hidden", "false");
+  if (githubSaveAsModalError) githubSaveAsModalError.textContent = "";
+  if (githubSaveAsSecretCheckbox) githubSaveAsSecretCheckbox.checked = false;
+  if (githubSaveAsNameInput) {
+    githubSaveAsNameInput.value = "";
+    githubSaveAsNameInput.focus();
+  }
+}
+
+function closeGithubSaveAsModal() {
+  if (!githubSaveAsModal) return;
+  githubSaveAsModal.setAttribute("aria-hidden", "true");
+}
+
 if (githubConnectButton) {
   githubConnectButton.addEventListener("click", () => {
     openGithubModal();
@@ -978,6 +1110,12 @@ if (githubModalCancelButton) {
 if (githubLoadModalCancelButton) {
   githubLoadModalCancelButton.addEventListener("click", () => {
     closeGithubLoadModal();
+  });
+}
+
+if (githubSaveAsModalCancelButton) {
+  githubSaveAsModalCancelButton.addEventListener("click", () => {
+    closeGithubSaveAsModal();
   });
 }
 
@@ -1022,9 +1160,16 @@ if (githubModalConfirmButton && githubTokenInput) {
         }
       }
 
+      githubGistId = null;
+      try {
+        window.sessionStorage.removeItem("bb-github-gist-id");
+      } catch {
+        // ignore
+      }
+
       updateGithubUi();
       closeGithubModal();
-      setError(
+      setInfo(
         githubLogin
           ? `Connected to GitHub as ${githubLogin}.`
           : "Connected to GitHub.",
@@ -1050,7 +1195,7 @@ if (githubSaveButton) {
       const project = getCurrentProject();
       const result = await saveProjectToGist(githubToken, project, {
         gistId: githubGistId,
-        description: "bb-plotter project",
+        description: "bytebeat-plotter project",
         public: false,
       });
       githubGistId = result.gistId;
@@ -1059,7 +1204,7 @@ if (githubSaveButton) {
       } catch {
         // ignore
       }
-      setError(`Saved to GitHub Gist (${githubGistId}).`);
+      setInfo(`Saved to GitHub Gist.`);
     } catch (error) {
       console.error("Failed to save project to GitHub Gist", error);
       setError("Failed to save project to GitHub.");
@@ -1096,14 +1241,14 @@ if (githubLoadButton) {
 
     if (!gists.length) {
       githubLoadList.innerHTML =
-        "<p class=\"bb-modal-body\">No bb-plotter gists found. Save a project first.</p>";
+        "<p class=\"bb-modal-body\">No bytebeat-plotter gists found. Save a project first.</p>";
       return;
     }
 
     const itemsMarkup = gists
       .map((gist) => {
         const date = new Date(gist.updatedAt);
-        const baseLabel = `${gist.description || "bb-plotter project"} — ${date.toLocaleString()}`;
+        const baseLabel = `${gist.description || "bytebeat-plotter project"} — ${date.toLocaleString()}`;
         const label =
           githubGistId && gist.id === githubGistId
             ? `${baseLabel} (last used)`
@@ -1133,7 +1278,8 @@ if (githubLoadButton) {
             // ignore
           }
           applyProject(project);
-          setError(`Loaded project from GitHub Gist.`);
+          setInfo(`Loaded project from GitHub Gist.`);
+          updateGithubUi();
           closeGithubLoadModal();
         } catch (error) {
           console.error("Failed to load project from GitHub Gist", error);
@@ -1157,8 +1303,13 @@ if (githubDisconnectButton) {
     } catch {
       // ignore
     }
+    try {
+      window.sessionStorage.removeItem("bb-github-gist-id");
+    } catch {
+      // ignore
+    }
     updateGithubUi();
-    setError("Disconnected from GitHub.");
+    setInfo("Disconnected from GitHub.");
   });
 }
 
@@ -1169,7 +1320,7 @@ if (githubToken && githubGistId) {
     try {
       const project = await loadProjectFromGist(githubToken as string, githubGistId as string);
       applyProject(project);
-      setError("Loaded project from last GitHub Gist.");
+      setInfo("Loaded project from last GitHub Gist.");
     } catch {
       githubGistId = null;
       try {

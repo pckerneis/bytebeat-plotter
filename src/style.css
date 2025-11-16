@@ -121,7 +121,14 @@ body {
 
 .bb-error {
   font-size: 0.8rem;
+}
+
+.bb-error--error {
   color: #f97373;
+}
+
+.bb-error--info {
+  color: rgba(209, 213, 219, 0.9);
 }
 
 .bb-sr-label {
