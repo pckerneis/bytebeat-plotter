@@ -7,7 +7,7 @@ import {
   validateGithubToken,
 } from "./github-gist-storage.ts";
 import { setError, setInfo } from "./status.ts";
-import {applyProject, getCurrentProject, stopPlayback} from './project.ts';
+import { applyProject, getCurrentProject, stopPlayback } from "./project.ts";
 
 let githubToken: string | null = null;
 let githubGistId: string | null = null;
@@ -349,14 +349,14 @@ if (githubDisconnectButton) {
 export function initialiseGitHubState() {
   updateGithubUi();
 
-  console.log('about to load github proj', githubToken)
+  console.log("about to load github proj", githubToken);
 
   if (githubToken && githubGistId) {
     (async () => {
       try {
         const loaded: LoadedProject = await loadProjectFromGist(
-            githubToken as string,
-            githubGistId as string,
+          githubToken as string,
+          githubGistId as string,
         );
         githubGistFilename = loaded.filename;
         applyProject(loaded.project);
@@ -365,8 +365,7 @@ export function initialiseGitHubState() {
         githubGistId = null;
         try {
           window.sessionStorage.removeItem("bb-github-gist-id");
-        } catch {
-        }
+        } catch {}
       }
       updateGithubUi();
     })();

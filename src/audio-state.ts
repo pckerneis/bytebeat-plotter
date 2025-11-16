@@ -1,8 +1,12 @@
 import { setError, setInfo } from "./status.ts";
 import { updatePlotConfigFromCode } from "./plotter.ts";
 import { getEditorValue } from "./editor.ts";
-import {extractExpressionFromCode} from './expression-utils.ts';
-import {classicCheckbox, floatCheckbox, sampleRateInput} from './selectors.ts';
+import { extractExpressionFromCode } from "./expression-utils.ts";
+import {
+  classicCheckbox,
+  floatCheckbox,
+  sampleRateInput,
+} from "./selectors.ts";
 
 let audioContext: AudioContext | null = null;
 let bytebeatNode: AudioWorkletNode | null = null;
@@ -84,6 +88,10 @@ export function scheduleAudioUpdate() {
   }, 150);
 }
 
+async function sleep(durationMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
 export async function ensureAudioGraph(
   expression: string,
   targetSampleRate: number,
@@ -109,6 +117,9 @@ export async function ensureAudioGraph(
         setError(data.message || "Error in expression.");
       }
     };
+
+    // Wait a bit to warm-up audio graph
+    await sleep(1000);
   }
 
   if (!bytebeatNode) return;

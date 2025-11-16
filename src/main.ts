@@ -6,7 +6,10 @@ import {
   updateUrlPatchFromUi,
 } from "./share-url.ts";
 import { setError } from "./status.ts";
-import {initialiseGitHubState, loadGitHubInfoFromStorage, setupGitHubUi} from './github-ui.ts';
+import {
+  initialiseGitHubState,
+  loadGitHubInfoFromStorage,
+} from "./github-ui.ts";
 import { updatePlotConfigFromCode } from "./plotter.ts";
 import {
   getAudioParams,
@@ -15,8 +18,15 @@ import {
   updateAudioWorkletParams,
   updateMasterGain,
 } from "./audio-state.ts";
-import {classicCheckbox, floatCheckbox, gainInput, gainValueSpan, playButton, sampleRateInput} from './selectors.ts';
-import {stopPlayback} from './project.ts';
+import {
+  classicCheckbox,
+  floatCheckbox,
+  gainInput,
+  gainValueSpan,
+  playButton,
+  sampleRateInput,
+} from "./selectors.ts";
+import { stopPlayback } from "./project.ts";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
