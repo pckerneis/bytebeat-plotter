@@ -7,7 +7,7 @@ import "codemirror/mode/javascript/javascript.js";
 
 export let editor: CodeMirror.Editor | null;
 
-export function initialiseEditor(initialCode: string) {
+export function initialiseEditor(initialCode: string, changeCallback: () => void) {
     const editorTextArea =
         document.querySelector<HTMLTextAreaElement>("#bb-editor");
 
@@ -25,6 +25,12 @@ export function initialiseEditor(initialCode: string) {
         electricChars: false,
         matchBrackets: true,
     });
+
+    if (!editor) {
+        throw new Error('Error while initializing editor');
+    }
+
+    editor.on("change", changeCallback);
 }
 
 export function getEditorValue(): string {

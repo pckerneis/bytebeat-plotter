@@ -13,8 +13,9 @@ import type {
   BbPlotterGistSummary,
   LoadedProject,
 } from "./github-gist-storage";
-import { editor, getEditorValue, initialiseEditor } from "./editor.js";
+import {getEditorValue, initialiseEditor, setEditorValue} from './editor.js';
 import {hasShareUrlParam, loadFromUrl, updateUrlPatchFromUi} from './share-url.ts';
+import {setError, setInfo} from './status.ts';
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -48,7 +49,16 @@ if (!hasShareUrlParam()) {
   }
 }
 
-initialiseEditor(initialCode);
+initialiseEditor(initialCode, () => {
+  try {
+    const code = getEditorValue();
+    window.localStorage.setItem(EDITOR_STORAGE_KEY, code);
+  } catch {
+    // ignore storage errors
+  }
+  updateUrlPatchFromUi();
+  scheduleAudioUpdate();
+});
 
 const playButton = document.querySelector<HTMLButtonElement>("#bb-play-button");
 const sampleRateInput =
@@ -57,7 +67,6 @@ const classicCheckbox = document.querySelector<HTMLInputElement>("#bb-classic");
 const floatCheckbox = document.querySelector<HTMLInputElement>("#bb-float");
 const gainInput = document.querySelector<HTMLInputElement>("#bb-gain");
 const gainValueSpan = document.querySelector<HTMLSpanElement>("#bb-gain-value");
-const errorSpan = document.querySelector<HTMLSpanElement>("#bb-error");
 const plotsContainer = document.querySelector<HTMLDivElement>(
   "#bb-plots-container",
 );
@@ -278,25 +287,6 @@ if (githubSaveAsModalConfirmButton && githubSaveAsNameInput) {
   });
 }
 
-function setStatus(message: string | null, kind: "error" | "info") {
-  if (!errorSpan) return;
-  errorSpan.textContent = message ?? "";
-  errorSpan.classList.remove("bb-error--error", "bb-error--info");
-  if (!message) return;
-  if (kind === "error") {
-    errorSpan.classList.add("bb-error--error");
-  } else {
-    errorSpan.classList.add("bb-error--info");
-  }
-}
-
-function setError(message: string | null) {
-  setStatus(message, "error");
-}
-
-function setInfo(message: string | null) {
-  setStatus(message, "info");
-}
 
 function updateGithubUi() {
   const isConnected = !!githubToken;
@@ -689,17 +679,6 @@ if (playButton) {
   });
 }
 
-(editor as any).on("change", () => {
-  try {
-  const code = getEditorValue();
-    window.localStorage.setItem(EDITOR_STORAGE_KEY, code);
-  } catch {
-    // ignore storage errors
-  }
-  updateUrlPatchFromUi();
-  scheduleAudioUpdate();
-});
-
 if (sampleRateInput) {
   sampleRateInput.addEventListener("change", () => {
     updateUrlPatchFromUi();
@@ -745,7 +724,7 @@ window.addEventListener("keydown", (event: KeyboardEvent) => {
 });
 
 function getCurrentProject(): BbProject {
-  const code = (editor as any).getValue() as string;
+  const code = getEditorValue();
   const srRaw = sampleRateInput?.value ?? "8000";
   const sampleRate = Number(srRaw) || 8000;
   const classic = !!classicCheckbox?.checked;
@@ -754,11 +733,11 @@ function getCurrentProject(): BbProject {
 }
 
 function applyProject(project: BbProject) {
-  (editor as any).setValue(project.code);
+  setEditorValue(project.code);
   if (sampleRateInput) sampleRateInput.value = String(project.sampleRate);
   if (classicCheckbox) classicCheckbox.checked = project.classic;
   if (floatCheckbox) floatCheckbox.checked = project.float;
-  updateAudioParams();
+  void updateAudioParams();
 }
 
 function openGithubModal() {
