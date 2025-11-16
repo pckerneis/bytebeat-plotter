@@ -1,7 +1,27 @@
-import { expressionApi } from "./expression-api";
 import { getEditorValue } from "./editor.ts";
 import { extractExpressionFromCode } from "./expression-utils.ts";
 import { floatCheckbox } from "./selectors.ts";
+
+  const expressionApi = `const abs = Math.abs;
+const sin = Math.sin;
+const cos = Math.cos;
+const tan = Math.tan;
+const asin = Math.asin;
+const acos = Math.acos;
+const atan = Math.atan;
+const tanh = Math.tanh;
+const floor = Math.floor;
+const ceil = Math.ceil;
+const round = Math.round;
+const sqrt = Math.sqrt;
+const log = Math.log;
+const exp = Math.exp;
+const pow = Math.pow;
+const PI = Math.PI;
+const TAU = Math.PI * 2;
+const min = Math.min;
+const max = Math.max;
+const random = Math.random;`;
 
 const plotsContainer = document.querySelector<HTMLDivElement>(
   "#bb-plots-container",
