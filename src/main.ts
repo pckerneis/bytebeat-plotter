@@ -956,6 +956,7 @@ async function handlePlayClick() {
     }
   } catch (error) {
     setError("Failed to start audio playback.");
+    console.error("Failed to start audio playback", error);
   }
 }
 
