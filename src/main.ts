@@ -126,6 +126,9 @@ app.innerHTML = `
       >
         <h2 id="bb-github-modal-title" class="bb-modal-title">Connect to GitHub</h2>
         <p class="bb-modal-body">
+          Connect to GitHub to save and load projects as gists.
+        </p>
+        <p class="bb-modal-body">
           Create a <strong>fine-grained personal access token</strong> on GitHub with the
           <code>gist</code> permission, then paste it below.
         </p>
@@ -1297,6 +1300,7 @@ if (githubLoadButton) {
           setInfo(`Loaded project from GitHub Gist.`);
           updateGithubUi();
           closeGithubLoadModal();
+          handleStopClick();
         } catch (error) {
           console.error("Failed to load project from GitHub Gist", error);
           if (githubLoadModalError) {

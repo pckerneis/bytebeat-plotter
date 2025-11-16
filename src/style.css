@@ -284,3 +284,21 @@ body {
   justify-content: flex-end;
   gap: 0.5rem;
 }
+
+.bb-modal-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.bb-modal-list-item {
+  display: flex;
+  border-radius: 0;
+  border: 0;
+  padding: 0.5rem;
+}
+
+.bb-modal-list-item:hover {
+  background: rgba(255, 255, 255, 0.137);
+}

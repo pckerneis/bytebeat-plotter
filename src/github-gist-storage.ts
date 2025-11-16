@@ -80,8 +80,11 @@ export async function saveProjectToGist(
     targetFilename = GIST_FILENAME;
   }
 
-  const payload = {
-    description: description || "bytebeat-plotter project",
+  const payload: {
+    description?: string;
+    public: boolean;
+    files: Record<string, { content: string }>;
+  } = {
     public: isPublic ?? false,
     files: {
       [targetFilename]: {
@@ -93,6 +96,14 @@ export async function saveProjectToGist(
       },
     },
   };
+
+  if (typeof description === "string") {
+    // Explicit name from the user (e.g. Save As) always wins.
+    payload.description = description;
+  } else if (!gistId) {
+    // For new gists without an explicit description, set a sensible default.
+    payload.description = "bytebeat-plotter project";
+  }
 
   const url = gistId
     ? `${GITHUB_API_BASE}/gists/${encodeURIComponent(gistId)}`
